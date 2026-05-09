@@ -61,7 +61,6 @@ def _is_ssrf_safe(url: str) -> tuple:
         if parsed.scheme not in ('http', 'https'):
             return False, f'Scheme not allowed: {parsed.scheme}'
         host = parsed.hostname or ''
-        # Block well-known metadata hostnames regardless of IP resolution
         metadata_hosts = [
             'metadata.google.internal',
             'metadata.goog',
@@ -75,13 +74,114 @@ def _is_ssrf_safe(url: str) -> tuple:
                 if ip in blocked:
                     return False, f'Blocked private/internal address: {host}'
         except ValueError:
-            # hostname (not a raw IP) — we cannot resolve it server-side cheaply;
-            # let the OS reject it at connect time. Named internal hosts are an
-            # accepted residual risk on Vercel's isolated sandbox environment.
             pass
         return True, ''
     except Exception as e:
         return False, f'URL parse error: {e}'
+
+
+# ── Portal path auto-detection ────────────────────────────────────────────────
+#
+# Stalker/Ministra portals are deployed at many different sub-paths.
+# We probe these in order and cache the first one that returns JSON.
+#
+# Common paths seen in the wild:
+#   /portal.php                     — classic Stalker
+#   /c/portal.php                   — Ministra default
+#   /stalker_portal/c/portal.php    — self-hosted Ministra
+#   /server/load.php                — older MAG firmware target
+#   /c/                             — some rebranded panels
+#   /stalker_portal/server/load.php — alternate self-hosted
+#   /api/                           — modern XC / hybrid panels
+
+_PORTAL_PATH_CANDIDATES = [
+    "/portal.php",
+    "/c/portal.php",
+    "/stalker_portal/c/portal.php",
+    "/server/load.php",
+    "/c/",
+    "/stalker_portal/server/load.php",
+    "/api/",
+]
+
+_resolved_bases: dict = {}   # cache: raw_base → resolved_base (per process lifetime)
+
+
+def _probe_one(base: str, path: str, mac: str) -> bool:
+    """Return True if GET base+path?action=handshake returns valid JSON with a token."""
+    try:
+        url = f"{base}{path}?{urlencode({'action': 'handshake', 'type': 'stb', 'prehash': 0})}"
+        req = urllib.request.Request(url, headers=build_headers(mac))
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            ct = resp.headers.get('Content-Type', '')
+            raw = resp.read(512)          # read only first 512 bytes for probe
+            # Reject HTML responses immediately
+            if raw.lstrip()[:1] in (b'<', b'\xef'):   # HTML or BOM
+                return False
+            if 'html' in ct.lower():
+                return False
+            # Try to parse as JSON and check for token
+            try:
+                data = json.loads(raw + resp.read())   # read remainder
+            except Exception:
+                return False
+            token = (data.get('js') or {}).get('token') or data.get('token')
+            return bool(token)
+    except Exception:
+        return False
+
+
+def resolve_portal_base(raw_base: str, mac: str) -> str:
+    """
+    Return a resolved base URL that includes the correct portal sub-path,
+    e.g. "http://host:8080/c" instead of "http://host:8080".
+
+    If the caller already included a sub-path (URL does not end at just host:port)
+    we honour it directly without probing.
+
+    Raises RuntimeError listing all tried paths if none succeed.
+    """
+    if raw_base in _resolved_bases:
+        return _resolved_bases[raw_base]
+
+    parsed = urlparse(raw_base)
+    existing_path = parsed.path.rstrip('/')
+
+    # If the user typed a path beyond the root, trust it (strip trailing /portal.php if present)
+    if existing_path and existing_path not in ('', '/'):
+        resolved = raw_base.rstrip('/')
+        _resolved_bases[raw_base] = resolved
+        return resolved
+
+    # Auto-probe
+    origin = f"{parsed.scheme}://{parsed.netloc}"   # scheme + host + port only
+    tried = []
+    for path in _PORTAL_PATH_CANDIDATES:
+        # Derive a clean base from origin + path prefix (drop the filename part)
+        base_candidate = origin + path.rstrip('/').rsplit('/', 1)[0]   # directory
+        full_path = path
+        if _probe_one(origin, full_path, mac):
+            # resolved base = origin + directory of the working path
+            resolved = (origin + path.rstrip('/').rsplit('/', 1)[0]).rstrip('/')
+            # Store the actual file suffix so portal_url() can use it
+            # We encode it by returning origin+full_directory and letting
+            # portal_url() append /portal.php — BUT if the working path
+            # is NOT portal.php we need a different suffix.
+            # Simplest: store the full working prefix as resolved_base.
+            suffix_file = path.split('/')[-1]   # e.g. "portal.php"
+            if suffix_file and suffix_file.endswith('.php'):
+                resolved_base = origin + '/'.join(path.split('/')[:-1])  # dir only
+            else:
+                resolved_base = origin + path.rstrip('/')
+            resolved_base = resolved_base.rstrip('/')
+            _resolved_bases[raw_base] = resolved_base
+            return resolved_base
+        tried.append(path)
+
+    raise RuntimeError(
+        f"Portal did not respond to any known path. Tried: {', '.join(tried)}. "
+        "Check the URL and make sure the portal is reachable."
+    )
 
 
 # ── M3U helpers ────────────────────────────────────────────────────────────────
@@ -117,20 +217,43 @@ def build_headers(mac, token=""):
     return h
 
 def portal_url(base, action, **params):
+    """
+    Build a full portal API URL.
+    `base` is already resolved (includes sub-path directory).
+    We always append /portal.php unless base already ends with a .php or trailing path.
+    """
     params["action"] = action
-    return f"{base.rstrip('/')}/portal.php?{urlencode(params)}"
+    base = base.rstrip('/')
+    # If base ends with a known script name, use it directly
+    if base.endswith('.php') or base.endswith('/'):
+        script = base
+    else:
+        script = f"{base}/portal.php"
+    return f"{script}?{urlencode(params)}"
 
 def http_get(url, headers, timeout=20):
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8", errors="replace"))
+        raw = resp.read()
+        # Detect HTML error pages before attempting JSON parse
+        snippet = raw.lstrip()[:50]
+        if snippet.startswith(b'<') or snippet.lower().startswith(b'<!doctype'):
+            raise ValueError(
+                "Portal returned an HTML page instead of JSON. "
+                "The path may be wrong, the MAC may be banned, or the portal requires a VPN."
+            )
+        return json.loads(raw.decode("utf-8", errors="replace"))
 
 def handshake(base, mac):
-    data = http_get(portal_url(base, "handshake", type="stb", prehash=0), build_headers(mac))
+    """Resolve portal path, perform handshake, return token."""
+    resolved = resolve_portal_base(base, mac)
+    data = http_get(portal_url(resolved, "handshake", type="stb", prehash=0), build_headers(mac))
     token = data.get("js", {}).get("token") or data.get("token")
     if not token:
         raise RuntimeError("No token in handshake response")
-    return token
+    # Update cache with resolved base so subsequent calls reuse it
+    _resolved_bases[base] = resolved
+    return token, resolved
 
 def get_profile(base, mac, token):
     url = portal_url(base, "get_profile",
@@ -342,13 +465,13 @@ class handler(BaseHTTPRequestHandler):
         known_urls = extract_known_urls(skip_known)
 
         try:
-            token = handshake(portal, mac)
+            token, resolved_portal = handshake(portal, mac)
         except Exception as e:
             return self.send_json(502, {"error": f"Handshake failed: {e}"})
 
         profile = {}
         try:
-            profile = get_profile(portal, mac, token)
+            profile = get_profile(resolved_portal, mac, token)
         except Exception:
             pass
 
@@ -357,7 +480,7 @@ class handler(BaseHTTPRequestHandler):
             all_channels, errors = [], []
             for t in types:
                 try:
-                    all_channels.extend(fetch_all(portal, mac, token, t, max_pgs, known_urls))
+                    all_channels.extend(fetch_all(resolved_portal, mac, token, t, max_pgs, known_urls))
                 except Exception as e:
                     errors.append(f"{t}: {e}")
             if not all_channels and errors:
@@ -381,13 +504,13 @@ class handler(BaseHTTPRequestHandler):
         estimated_total = max(len(types) * max_pgs * 20, 20)
 
         for media_type in types:
-            genres    = fetch_genres(portal, mac, token, media_type)
+            genres    = fetch_genres(resolved_portal, mac, token, media_type)
             seen      = set()
             type_sent = 0
 
             for page in range(1, max_pgs + 1):
                 try:
-                    items, total_items = fetch_page(portal, mac, token, media_type, page)
+                    items, total_items = fetch_page(resolved_portal, mac, token, media_type, page)
                 except Exception as e:
                     err_msg = str(e)
                     errors.append(f"{media_type} p{page}: {err_msg}")
@@ -407,7 +530,7 @@ class handler(BaseHTTPRequestHandler):
                         continue
                     seen.add(cid)
                     built = build_channel(ch, genres, media_type,
-                                          portal, mac, token, known_urls, sent + 1)
+                                          resolved_portal, mac, token, known_urls, sent + 1)
                     if not built:
                         continue
                     sent      += 1
