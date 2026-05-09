@@ -1,44 +1,50 @@
-from http.server import BaseHTTPRequestHandler
-import json
-import urllib.request
-import urllib.parse
+"""
+api/test.py  —  Quick portal reachability check.
 
+POST /api/test   { "portal": "http://HOST:PORT" }
+"""
+
+from http.server import BaseHTTPRequestHandler
+import json, urllib.request
 
 class handler(BaseHTTPRequestHandler):
 
-    def log_message(self, format, *args):
-        pass
+    def log_message(self, *a): pass
 
-    def do_GET(self):
-        qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        portal = (qs.get("portal", [""])[0]).strip().rstrip("/")
-        if not portal:
-            body = json.dumps({"error": "Missing ?portal=... query param"}).encode()
-            self.send_response(400)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(body)
-            return
+    def _cors(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
-        try:
-            url = f"{portal}/portal.php?action=handshake&type=stb&prehash=0"
-            req = urllib.request.Request(url, headers={
-                "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
-                "Accept": "*/*"
-            })
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                raw = resp.read().decode("utf-8", errors="replace")
-            body = json.dumps({"ok": True, "reachable": True, "response": raw[:500]}).encode()
-            status = 200
-        except Exception as e:
-            body = json.dumps({"ok": False, "reachable": False, "error": str(e)}).encode()
-            status = 502
-
+    def send_json(self, status, data):
+        body = json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._cors()
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self.send_response(204); self._cors(); self.end_headers()
+
+    def do_POST(self):
+        try:
+            payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length",0))))
+        except Exception:
+            return self.send_json(400, {"ok": False, "error": "Invalid JSON"})
+
+        portal = (payload.get("portal") or "").strip().rstrip("/")
+        if not portal:
+            return self.send_json(400, {"ok": False, "error": "portal is required"})
+
+        url = f"{portal}/portal.php?action=handshake&type=stb&prehash=0"
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "MAG200", "Accept": "*/*"
+            })
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                body = resp.read().decode("utf-8", errors="replace")
+            self.send_json(200, {"ok": True, "status": resp.status, "preview": body[:200]})
+        except Exception as e:
+            self.send_json(502, {"ok": False, "error": str(e)})

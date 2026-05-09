@@ -1,12 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    { "source": "/", "destination": "/public/index.html" },
+    { "source": "/",            "destination": "/public/index.html" },
     { "source": "/api/convert", "destination": "/api/convert.py" },
-    { "source": "/api/test", "destination": "/api/test.py" }
+    { "source": "/api/test",    "destination": "/api/test.py" }
   ],
   "functions": {
-    "api/convert.py": { "maxDuration": 60, "memory": 512 },
-    "api/test.py":    { "maxDuration": 15, "memory": 256 }
+    "api/convert.py": { "maxDuration": 300, "memory": 1024 },
+    "api/test.py":    { "maxDuration": 15,  "memory": 256  }
   }
 }
