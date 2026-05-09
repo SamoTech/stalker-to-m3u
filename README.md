@@ -1,101 +1,105 @@
-# Stalker → M3U Converter
+# stalker-to-m3u
 
-> Convert **Stalker/Ministra IPTV portal** (MAC-based authentication) into a standard **M3U playlist** — runs entirely in your browser, no server or install needed.
-
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-blue?style=flat-square)](https://samotech.github.io/stalker-to-m3u/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+Convert a **Stalker / Ministra IPTV portal** (MAC-based auth) to a standard `.m3u` playlist — using a simple Python CLI script. No proxy needed, no browser, runs directly from your terminal.
 
 ---
 
-## ✨ Features
+## Requirements
 
-- 🔐 **Full Stalker Auth Flow** — Handshake → Bearer Token → Profile
-- 📡 **Fetch Live TV, VOD & Series** — paginated, auto-detects total pages
-- 🎛️ **Channel Editor** — searchable table, per-channel & per-group toggles
-- 📄 **M3U Export** — `tvg-id`, `tvg-logo`, `group-title`, custom EPG URL
-- 🌓 **Dark / Light Mode** — auto-detects system preference
-- 🔄 **CORS Proxy Support** — works with corsproxy.io, allorigins.win, or your own proxy
-- 💾 **Download or Copy** — one-click `.m3u` download or clipboard copy
-- 🎭 **Demo Mode** — test the full UI without a real portal
-
----
-
-## 🚀 Usage
-
-### Option A — GitHub Pages
-
-```
-https://samotech.github.io/stalker-to-m3u/
-```
-
-### Option B — Local
+- Python 3.10+
+- `requests` library
 
 ```bash
-git clone https://github.com/SamoTech/stalker-to-m3u.git
-cd stalker-to-m3u
-open stalker-to-m3u.html
+pip install requests
+# or
+pip install -r requirements.txt
 ```
 
 ---
 
-## 🛠️ Setup Guide
+## Usage
 
-### Step 1 — Portal Configuration
+### Basic — fetch Live TV
 
-| Field | Description |
-|---|---|
-| **Portal URL** | Your provider's portal address, e.g. `http://provider.com:8080` |
-| **MAC Address** | Your registered device MAC, e.g. `00:1A:79:XX:XX:XX` |
-| **CORS Proxy** | Required for browser requests — use `https://corsproxy.io/?` |
-
-### Step 2 — Fetch Channels
-
-Select channel types (Live TV / VOD / Series) and click **Fetch Channels**. The tool paginates through all results automatically.
-
-### Step 3 — Edit & Export
-
-- **Channels tab** — search, filter by group, enable/disable individual channels
-- **Groups tab** — toggle entire groups
-- **M3U Output tab** — configure export options and download/copy your playlist
-
----
-
-## 🔑 How Stalker Authentication Works
-
-```
-1. GET /portal.php?action=handshake
-   Headers: Cookie: mac=<MAC>; User-Agent: MAG200 stbapp...
-   → Returns: { js: { token: "..." } }
-
-2. GET /portal.php?action=get_profile
-   Headers: Authorization: Bearer <token>
-   → Returns: account info, expiry, tariff
-
-3. GET /portal.php?action=get_all_channels&type=itv&p=1
-   Headers: Authorization: Bearer <token>
-   → Returns: paginated channel list with cmd URLs
+```bash
+python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX
 ```
 
-The stream `cmd` field uses format `ffmpeg http://...` — the converter strips the prefix automatically.
+Outputs `playlist.m3u` in the current directory.
+
+### Custom output file
+
+```bash
+python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX --output my_tv.m3u
+```
+
+### Fetch Live + VOD + Series
+
+```bash
+python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX --types live vod series
+```
+
+### Set max pages (each page ≈ 14–20 channels)
+
+```bash
+python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX --max-pages 200
+```
+
+### Add EPG URL to M3U header
+
+```bash
+python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX --epg http://epg.example.com/epg.xml
+```
+
+### Verbose output
+
+```bash
+python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX -v
+```
 
 ---
 
-## 🌐 CORS Proxy Options
+## All Arguments
 
-| Proxy | URL Pattern |
-|---|---|
-| corsproxy.io | `https://corsproxy.io/?<url>` |
-| allorigins.win | `https://api.allorigins.win/raw?url=<url>` |
-| thingproxy | `https://thingproxy.freeboard.io/fetch/<url>` |
+| Argument | Default | Description |
+|---|---|---|
+| `--portal` | *(required)* | Portal base URL, e.g. `http://host:8080` |
+| `--mac` | *(required)* | MAC address in `00:1A:79:XX:XX:XX` format |
+| `--types` | `live` | Space-separated: `live`, `vod`, `series` |
+| `--max-pages` | `50` | Max pages to fetch per type |
+| `--output` | `playlist.m3u` | Output `.m3u` file path |
+| `--epg` | *(empty)* | EPG URL to embed in M3U header |
+| `--timeout` | `15` | HTTP request timeout in seconds |
+| `--verbose` / `-v` | off | Show per-page progress |
 
 ---
 
-## ⚠️ Disclaimer
+## How It Works
 
-This tool is for **personal use only** with IPTV services you are legally subscribed to.
+The script replicates exactly what a **MAG200 set-top box** sends to the portal:
+
+1. **Handshake** — sends the MAC in a cookie, gets an auth token back
+2. **Profile** — fetches subscriber info (name, expiry date)
+3. **Genres/Categories** — maps `genre_id` → group name for M3U `group-title`
+4. **Paginated channel list** — iterates all pages until done
+5. **Stream URL extraction** — strips Stalker's internal `ffmpeg`/`auto` prefix from `cmd` field; falls back to `create_link` API if needed
+6. **M3U generation** — writes standard EXTM3U with `tvg-id`, `tvg-name`, `tvg-logo`, `group-title`, `tvg-chno`
 
 ---
 
-## 📄 License
+## Output Format
 
-MIT © [Ossama Hashim](https://github.com/SamoTech)
+```m3u
+#EXTM3U
+#EXTINF:-1 tvg-id="" tvg-name="BBC One" tvg-logo="http://..." group-title="Entertainment" tvg-chno="1",BBC One
+http://host:port/play/...
+```
+
+---
+
+## Notes
+
+- The script talks **directly** to the portal — no CORS proxy needed (pure Python HTTP)
+- Works on Windows, Linux, macOS
+- Stream URLs expire when the token expires — re-run the script to refresh
+- Use `--max-pages 999` if you want to guarantee all channels are fetched
