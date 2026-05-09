@@ -3,12 +3,14 @@ api/convert.py  —  Vercel serverless function.
 
 POST /api/convert
   Body (JSON):
-    portal    : str   required  http://HOST:PORT
-    mac       : str   required  00:1A:79:XX:XX:XX
-    types     : list  optional  ["live","vod","series"]  default ["live"]
-    maxPages  : int   optional  default 50
-    epgUrl    : str   optional
-    format    : str   optional  "m3u" | "json"           default "m3u"
+    portal      : str   required  http://HOST:PORT
+    mac         : str   required  00:1A:79:XX:XX:XX
+    types       : list  optional  ["live","vod","series"]  default ["live"]
+    maxPages    : int   optional  default 50
+    epgUrl      : str   optional
+    format      : str   optional  "m3u" | "json"           default "m3u"
+    skipKnown   : str   optional  existing M3U text; channels whose URLs already
+                                  appear in it will be omitted (diff / recheck mode)
 """
 
 from http.server import BaseHTTPRequestHandler
@@ -16,6 +18,56 @@ import json, hashlib, re, time
 import urllib.request, urllib.parse, urllib.error
 from urllib.parse import urlencode
 
+
+# ── Stream-type classification (ported from IPTV-CHECK) ────────────────────────
+STREAM_TYPE_MAP = {
+    '.m3u8': 'video', '.m3u': 'video', '.ts': 'video', '.mp4': 'video',
+    '.avi': 'video', '.mkv': 'video', '.flv': 'video',
+    '.mp3': 'audio', '.aac': 'audio', '.pls': 'audio', '.ogg': 'audio',
+    '/stream': 'audio', '/radio/': 'audio',
+}
+
+def classify_stream_type(url: str) -> str:
+    low = url.lower().split('?')[0]
+    for pat, typ in STREAM_TYPE_MAP.items():
+        if pat in low:
+            return typ
+    return 'video'
+
+
+def sanitize_url(url: str) -> str:
+    """Strip ad-injected query params from .m3u8 URLs (ported from IPTV-CHECK)."""
+    try:
+        idx = url.find('.m3u8?')
+        if idx != -1:
+            qs = url[idx + 6:].lower()
+            if any(kw in qs for kw in ['ads.', 'ad=', 'adv=', 'vast=', 'ima=']):
+                return url[:idx + 6].rstrip('?')
+    except Exception:
+        pass
+    return url
+
+
+def is_uncheckable(url: str) -> bool:
+    """True if the URL likely cannot be probed (token-signed, auth-gated)."""
+    UNCHECKABLE_KEYWORDS = ['token', 'auth', 'login', 'key', 'signature', 'drm']
+    if len(url) > 250:
+        return True
+    low = url.lower()
+    return any(kw in low for kw in UNCHECKABLE_KEYWORDS)
+
+
+# ── M3U helpers ───────────────────────────────────────────────────────────────
+
+def extract_known_urls(m3u_text: str) -> set:
+    """Return set of stream URLs already present in an existing M3U."""
+    if not m3u_text:
+        return set()
+    return {line.strip() for line in m3u_text.splitlines()
+            if line.strip() and not line.strip().startswith('#')}
+
+
+# ── Stalker portal helpers ────────────────────────────────────────────────────
 
 def mac_to_serial(mac):
     return hashlib.md5(mac.replace(":","").upper().encode()).hexdigest()[:13].upper()
@@ -83,21 +135,18 @@ def clean_cmd(cmd):
     if not cmd:
         return ""
     cmd = cmd.strip()
-    # Direct URL
     if re.match(r'^https?://', cmd) or cmd.startswith("rtsp://"):
-        return cmd
-    # ffmpeg http://... or auto http://...
+        return sanitize_url(cmd)
     m = re.match(r'^(?:ffmpeg|auto)\s+(https?://\S+|rtsp://\S+)', cmd)
     if m:
-        return m.group(1)
-    # /ch/... style relative path  — keep as-is, portal base will be prepended later
+        return sanitize_url(m.group(1))
     return cmd
 
 def fetch_page(base, mac, token, media_type, page):
     t = {"live":"itv","vod":"vod","series":"series"}.get(media_type, "itv")
     url = portal_url(base, "get_ordered_list",
         type=t,
-        genre="*",          # "*" returns ALL genres; "0" may return nothing on some portals
+        genre="*",
         force_ch_link_check=0, fav=0, sortby="number", hd=0,
         p=page, JsHttpRequest=f"{int(time.time()*1000)}-xml")
     js = http_get(url, build_headers(mac, token)).get("js", {})
@@ -118,9 +167,10 @@ def create_link(base, mac, token, cmd):
     except Exception:
         return ""
 
-def fetch_all(base, mac, token, media_type, max_pages=50):
+def fetch_all(base, mac, token, media_type, max_pages=50, known_urls=None):
     genres = fetch_genres(base, mac, token, media_type)
     channels, seen, total = [], set(), None
+    known_urls = known_urls or set()
 
     for page in range(1, max_pages + 1):
         try:
@@ -142,18 +192,22 @@ def fetch_all(base, mac, token, media_type, max_pages=50):
             raw_cmd  = ch.get("cmd") or ""
             stream   = clean_cmd(raw_cmd)
 
-            # If clean_cmd couldn't resolve it, try create_link (only for live)
             if not stream and raw_cmd and media_type == "live":
                 stream = create_link(base, mac, token, raw_cmd)
 
+            # Diff / recheck mode: skip channels already in existing playlist
+            if stream and stream in known_urls:
+                continue
+
             channels.append({
-                "name":       (ch.get("name") or ch.get("title") or "Unknown").strip(),
-                "logo":       ch.get("logo") or ch.get("screenshot_uri") or "",
-                "group":      genres.get(genre_id, "Uncategorized"),
-                "number":     ch.get("number") or ch.get("ch_number") or len(channels)+1,
-                "stream_url": stream,
-                "epg_id":     ch.get("xmltv_id") or ch.get("tvg_id") or "",
-                "raw_cmd":    raw_cmd,   # kept for debugging / json format
+                "name":        (ch.get("name") or ch.get("title") or "Unknown").strip(),
+                "logo":        ch.get("logo") or ch.get("screenshot_uri") or "",
+                "group":       genres.get(genre_id, "Uncategorized"),
+                "number":      ch.get("number") or ch.get("ch_number") or len(channels)+1,
+                "stream_url":  stream,
+                "epg_id":      ch.get("xmltv_id") or ch.get("tvg_id") or "",
+                "raw_cmd":     raw_cmd,
+                "uncheckable": is_uncheckable(stream) if stream else False,
             })
 
         if total and len(channels) >= total:
@@ -168,18 +222,21 @@ def build_m3u(channels, epg_url=""):
         if not url:
             continue
         name = ch["name"]
+        stype = classify_stream_type(url)
+        # Tag uncheckable channels with a warning group
+        group = ch.get("group", "Uncategorized")
+        if ch.get("uncheckable"):
+            group = "⚠ Auth Required"
         lines.append(
             f'#EXTINF:-1 tvg-id="{ch["epg_id"]}" tvg-name="{name}" '
-            f'tvg-logo="{ch["logo"]}" group-title="{ch["group"]}" '
-            f'tvg-chno="{ch["number"]}",{name}'
+            f'tvg-logo="{ch["logo"]}" group-title="{group}" '
+            f'tvg-chno="{ch["number"]}" tvg-type="{stype}",{name}'
         )
         lines.append(url)
     return "\n".join(lines) + "\n"
 
 
-# ---------------------------------------------------------------------------
-# Vercel handler
-# ---------------------------------------------------------------------------
+# ── Vercel handler ────────────────────────────────────────────────────────────
 
 class handler(BaseHTTPRequestHandler):
 
@@ -221,17 +278,20 @@ class handler(BaseHTTPRequestHandler):
         except Exception:
             return self.send_json(400, {"error": "Invalid JSON body"})
 
-        portal   = (payload.get("portal")   or "").strip().rstrip("/")
-        mac      = (payload.get("mac")      or "").strip()
-        types    = payload.get("types")     or ["live"]
-        max_pgs  = int(payload.get("maxPages") or 50)
-        epg_url  = (payload.get("epgUrl")   or "").strip()
-        fmt      = (payload.get("format")   or "m3u").lower()
+        portal     = (payload.get("portal")    or "").strip().rstrip("/")
+        mac        = (payload.get("mac")       or "").strip()
+        types      = payload.get("types")      or ["live"]
+        max_pgs    = int(payload.get("maxPages") or 50)
+        epg_url    = (payload.get("epgUrl")    or "").strip()
+        fmt        = (payload.get("format")    or "m3u").lower()
+        skip_known = (payload.get("skipKnown") or "").strip()
 
         if not portal or not mac:
             return self.send_json(400, {"error": "Missing required fields: portal, mac"})
         if not re.match(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', mac):
             return self.send_json(400, {"error": f"Invalid MAC: {mac}"})
+
+        known_urls = extract_known_urls(skip_known)
 
         try:
             token = handshake(portal, mac)
@@ -247,7 +307,7 @@ class handler(BaseHTTPRequestHandler):
         all_channels, errors = [], []
         for t in types:
             try:
-                chs = fetch_all(portal, mac, token, t, max_pgs)
+                chs = fetch_all(portal, mac, token, t, max_pgs, known_urls)
                 all_channels.extend(chs)
             except Exception as e:
                 errors.append(f"{t}: {e}")
@@ -261,6 +321,7 @@ class handler(BaseHTTPRequestHandler):
                 "profile":  profile,
                 "channels": all_channels,
                 "errors":   errors,
+                "skipped":  len(known_urls),
             })
 
         self.send_m3u(build_m3u(all_channels, epg_url))
