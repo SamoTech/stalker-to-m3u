@@ -17,10 +17,6 @@ import urllib.request, urllib.parse, urllib.error
 from urllib.parse import urlencode
 
 
-# ---------------------------------------------------------------------------
-# Core helpers  (stdlib-only, mirrors stalker_to_m3u.py logic)
-# ---------------------------------------------------------------------------
-
 def mac_to_serial(mac):
     return hashlib.md5(mac.replace(":","").upper().encode()).hexdigest()[:13].upper()
 
@@ -72,42 +68,61 @@ def get_profile(base, mac, token):
 def fetch_genres(base, mac, token, media_type):
     action = "get_genres" if media_type == "live" else "get_categories"
     t = {"live":"itv","vod":"vod","series":"series"}.get(media_type, "itv")
-    data = http_get(portal_url(base, action, type=t), build_headers(mac, token))
-    return {str(g.get("id","")): (g.get("title") or g.get("name","")).strip()
-            for g in data.get("js",[]) if g.get("id")}
+    try:
+        data = http_get(portal_url(base, action, type=t), build_headers(mac, token))
+        js = data.get("js") or []
+        if isinstance(js, dict):
+            js = list(js.values())
+        return {str(g.get("id","")): (g.get("title") or g.get("name","")).strip()
+                for g in js if g.get("id")}
+    except Exception:
+        return {}
+
+def clean_cmd(cmd):
+    """Strip ffmpeg/auto prefix and return the real URL, or empty string."""
+    if not cmd:
+        return ""
+    cmd = cmd.strip()
+    # Direct URL
+    if re.match(r'^https?://', cmd) or cmd.startswith("rtsp://"):
+        return cmd
+    # ffmpeg http://... or auto http://...
+    m = re.match(r'^(?:ffmpeg|auto)\s+(https?://\S+|rtsp://\S+)', cmd)
+    if m:
+        return m.group(1)
+    # /ch/... style relative path  — keep as-is, portal base will be prepended later
+    return cmd
 
 def fetch_page(base, mac, token, media_type, page):
     t = {"live":"itv","vod":"vod","series":"series"}.get(media_type, "itv")
     url = portal_url(base, "get_ordered_list",
-        type=t, action="get_ordered_list",
-        genre=0, force_ch_link_check=0, fav=0, sortby="number", hd=0,
+        type=t,
+        genre="*",          # "*" returns ALL genres; "0" may return nothing on some portals
+        force_ch_link_check=0, fav=0, sortby="number", hd=0,
         p=page, JsHttpRequest=f"{int(time.time()*1000)}-xml")
     js = http_get(url, build_headers(mac, token)).get("js", {})
-    return js.get("data",[]), int(js.get("total_items",0) or js.get("total",0))
+    if isinstance(js, list):
+        return js, len(js)
+    data = js.get("data") or []
+    total = int(js.get("total_items") or js.get("total") or 0)
+    return data, total
 
-def extract_stream_url(base, mac, token, cmd):
-    if cmd.startswith(("http://","https://","rtsp://")):
-        return cmd
-    clean = re.sub(r'^(ffmpeg|auto)\s+','', cmd).strip()
-    if clean.startswith(("http","rtsp")):
-        return clean
+def create_link(base, mac, token, cmd):
+    """Ask the portal to resolve a non-http cmd into a playable URL."""
     try:
         url = portal_url(base, "create_link", type="itv",
-                         cmd=urllib.parse.quote(cmd),
+                         cmd=urllib.parse.quote(cmd, safe=""),
                          JsHttpRequest=f"{int(time.time()*1000)}-xml")
-        link = re.sub(r'^(ffmpeg|auto)\s+','',
-                      http_get(url, build_headers(mac, token)).get("js",{}).get("cmd","")).strip()
-        return link or clean
+        raw = http_get(url, build_headers(mac, token)).get("js",{}).get("cmd","")
+        return clean_cmd(raw)
     except Exception:
-        return clean
+        return ""
 
 def fetch_all(base, mac, token, media_type, max_pages=50):
-    try:
-        genres = fetch_genres(base, mac, token, media_type)
-    except Exception:
-        genres = {}
+    genres = fetch_genres(base, mac, token, media_type)
     channels, seen, total = [], set(), None
-    for page in range(1, max_pages+1):
+
+    for page in range(1, max_pages + 1):
         try:
             items, total_items = fetch_page(base, mac, token, media_type, page)
         except Exception:
@@ -116,35 +131,49 @@ def fetch_all(base, mac, token, media_type, max_pages=50):
             total = total_items
         if not items:
             break
+
         for ch in items:
-            cid = str(ch.get("id",""))
-            if cid in seen: continue
+            cid = str(ch.get("id","") or ch.get("cmd",""))
+            if cid in seen:
+                continue
             seen.add(cid)
+
             genre_id = str(ch.get("tv_genre_id") or ch.get("category_id") or "")
-            cmd = ch.get("cmd","")
+            raw_cmd  = ch.get("cmd") or ""
+            stream   = clean_cmd(raw_cmd)
+
+            # If clean_cmd couldn't resolve it, try create_link (only for live)
+            if not stream and raw_cmd and media_type == "live":
+                stream = create_link(base, mac, token, raw_cmd)
+
             channels.append({
-                "name":       (ch.get("name") or ch.get("title") or "").strip(),
+                "name":       (ch.get("name") or ch.get("title") or "Unknown").strip(),
                 "logo":       ch.get("logo") or ch.get("screenshot_uri") or "",
                 "group":      genres.get(genre_id, "Uncategorized"),
-                "number":     ch.get("number") or ch.get("ch_number") or page,
-                "stream_url": extract_stream_url(base, mac, token, cmd) if cmd else "",
+                "number":     ch.get("number") or ch.get("ch_number") or len(channels)+1,
+                "stream_url": stream,
                 "epg_id":     ch.get("xmltv_id") or ch.get("tvg_id") or "",
+                "raw_cmd":    raw_cmd,   # kept for debugging / json format
             })
+
         if total and len(channels) >= total:
             break
+
     return channels
 
 def build_m3u(channels, epg_url=""):
     lines = [f'#EXTM3U url-tvg="{epg_url}"' if epg_url else "#EXTM3U"]
     for ch in channels:
-        if not ch.get("stream_url"): continue
-        name = ch["name"] or "Unknown"
+        url = ch.get("stream_url") or ch.get("raw_cmd") or ""
+        if not url:
+            continue
+        name = ch["name"]
         lines.append(
             f'#EXTINF:-1 tvg-id="{ch["epg_id"]}" tvg-name="{name}" '
             f'tvg-logo="{ch["logo"]}" group-title="{ch["group"]}" '
             f'tvg-chno="{ch["number"]}",{name}'
         )
-        lines.append(ch["stream_url"])
+        lines.append(url)
     return "\n".join(lines) + "\n"
 
 
@@ -187,16 +216,17 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
-            payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length",0))))
+            length = int(self.headers.get("Content-Length", 0))
+            payload = json.loads(self.rfile.read(length))
         except Exception:
             return self.send_json(400, {"error": "Invalid JSON body"})
 
-        portal   = (payload.get("portal")  or "").strip().rstrip("/")
-        mac      = (payload.get("mac")     or "").strip()
-        types    = payload.get("types")    or ["live"]
+        portal   = (payload.get("portal")   or "").strip().rstrip("/")
+        mac      = (payload.get("mac")      or "").strip()
+        types    = payload.get("types")     or ["live"]
         max_pgs  = int(payload.get("maxPages") or 50)
-        epg_url  = (payload.get("epgUrl")  or "").strip()
-        fmt      = (payload.get("format")  or "m3u").lower()
+        epg_url  = (payload.get("epgUrl")   or "").strip()
+        fmt      = (payload.get("format")   or "m3u").lower()
 
         if not portal or not mac:
             return self.send_json(400, {"error": "Missing required fields: portal, mac"})
@@ -209,8 +239,10 @@ class handler(BaseHTTPRequestHandler):
             return self.send_json(502, {"error": f"Handshake failed: {e}"})
 
         profile = {}
-        try: profile = get_profile(portal, mac, token)
-        except Exception: pass
+        try:
+            profile = get_profile(portal, mac, token)
+        except Exception:
+            pass
 
         all_channels, errors = [], []
         for t in types:
