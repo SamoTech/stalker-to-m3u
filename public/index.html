@@ -51,7 +51,6 @@ input::placeholder{color:var(--faint)}
 .checks input[type=checkbox]{accent-color:var(--primary);width:16px;height:16px;cursor:pointer}
 .range-row{display:flex;align-items:center;gap:12px}
 input[type=range]{flex:1;accent-color:var(--primary);height:4px;cursor:pointer}
-.range-val{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--primary);min-width:36px;text-align:right}
 
 /* recheck toggle */
 .recheck-toggle{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
@@ -102,7 +101,7 @@ input[type=range]{flex:1;accent-color:var(--primary);height:4px;cursor:pointer}
 .result-card h3{font-size:14px;font-weight:600;margin-bottom:14px;color:var(--text)}
 .result-card textarea{width:100%;background:var(--entry);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.6;resize:vertical;min-height:160px;outline:none;margin-bottom:14px}
 .result-card textarea:focus{border-color:var(--primary)}
-.result-stats{font-size:12px;color:var(--muted);margin-bottom:14px;display:flex;gap:14px;flex-wrap:wrap}
+.result-stats{font-size:12px;color:var(--muted);margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .stat-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
 .stat-live{background:color-mix(in oklch,var(--success) 15%,transparent);color:var(--success)}
 .stat-dead{background:color-mix(in oklch,var(--error) 15%,transparent);color:var(--error)}
@@ -113,14 +112,40 @@ input[type=range]{flex:1;accent-color:var(--primary);height:4px;cursor:pointer}
 .validate-panel{width:100%;max-width:680px;background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:20px 24px;display:none;margin-top:16px}
 .validate-panel.visible{display:block}
 .validate-panel h3{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text);display:flex;align-items:center;gap:8px}
-.validate-stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
-.vp-progress{height:8px;background:var(--surf2);border-radius:4px;overflow:hidden;margin-bottom:14px;display:none}
+
+/* validate controls */
+.validate-controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;padding:14px;background:var(--surf2);border-radius:10px;border:1px solid var(--border)}
+.vc-label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.vc-val{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--primary);font-weight:600}
+
+/* validate progress */
+.vp-progress{height:8px;background:var(--surf2);border-radius:4px;overflow:hidden;margin-bottom:6px;display:none;position:relative}
 .vp-progress.visible{display:block}
-.vp-bar{height:100%;width:0;background:var(--primary);transition:width .4s;border-radius:4px}
-.vp-table-wrap{max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px;display:none}
+.vp-bar{height:100%;width:0;background:var(--primary);transition:width .4s cubic-bezier(.16,1,.3,1);border-radius:4px}
+.vp-progress-text{font-size:12px;color:var(--muted);margin-bottom:14px;font-family:'JetBrains Mono',monospace}
+
+/* validate stats */
+.validate-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+
+/* table filter/sort bar */
+.table-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.table-toolbar input{flex:1;min-width:150px;background:var(--entry);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 11px;font-size:13px;outline:none;transition:border-color .15s}
+.table-toolbar input:focus{border-color:var(--primary)}
+.filter-btn{padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surf2);color:var(--muted);transition:all .15s;white-space:nowrap}
+.filter-btn.active-all{border-color:var(--primary);color:var(--primary);background:var(--primary-dim)}
+.filter-btn.active-live{border-color:var(--success);color:var(--success);background:color-mix(in oklch,var(--success) 12%,transparent)}
+.filter-btn.active-dead{border-color:var(--error);color:var(--error);background:color-mix(in oklch,var(--error) 12%,transparent)}
+.filter-btn.active-unch{border-color:var(--warn);color:var(--warn);background:color-mix(in oklch,var(--warn) 12%,transparent)}
+.filter-btn:not(.active-all):not(.active-live):not(.active-dead):not(.active-unch):hover{border-color:var(--muted);color:var(--text)}
+
+/* table */
+.vp-table-wrap{max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px;display:none}
 .vp-table-wrap.visible{display:block}
 table{width:100%;border-collapse:collapse;font-size:12px}
-th{background:var(--surf2);color:var(--muted);padding:8px 10px;text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;position:sticky;top:0;z-index:1}
+th{background:var(--surf2);color:var(--muted);padding:8px 10px;text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;position:sticky;top:0;z-index:1;cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:var(--text)}
+th .sort-icon{display:inline-block;opacity:.4;margin-left:3px;font-size:10px}
+th.sort-asc .sort-icon,th.sort-desc .sort-icon{opacity:1;color:var(--primary)}
 td{padding:7px 10px;border-top:1px solid var(--border);color:var(--text);vertical-align:middle}
 tr:hover td{background:var(--surf2)}
 .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.03em}
@@ -129,14 +154,20 @@ tr:hover td{background:var(--surf2)}
 .pill-unch{background:color-mix(in oklch,var(--warn) 18%,transparent);color:var(--warn)}
 .pill-video{background:color-mix(in oklch,var(--primary) 18%,transparent);color:var(--primary)}
 .pill-audio{background:color-mix(in oklch,#7a39bb 18%,transparent);color:#7a39bb}
-.td-url{font-family:'JetBrains Mono',monospace;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.td-url{font-family:'JetBrains Mono',monospace;font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.copy-url-btn{background:none;border:1px solid var(--border);border-radius:5px;color:var(--faint);font-size:10px;padding:2px 6px;cursor:pointer;transition:all .12s;white-space:nowrap;font-family:inherit}
+.copy-url-btn:hover{color:var(--primary);border-color:var(--primary)}
+.copy-url-btn.copied{color:var(--success);border-color:var(--success)}
+.td-url-wrap{display:flex;align-items:center;gap:5px;min-width:0}
+.reason-text{font-size:10px;color:var(--faint);font-family:'JetBrains Mono',monospace;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* footer */
 .footer{margin-top:40px;font-size:12px;color:var(--faint);text-align:center}
 .footer a{color:var(--muted)}
 @media(max-width:480px){
   .btn-row{flex-direction:column}.btn{width:100%}.ml-auto{margin-left:0}
-  .validate-stats{flex-direction:column;gap:6px}
+  .validate-controls{grid-template-columns:1fr}
+  .table-toolbar{flex-direction:column;align-items:stretch}
 }
 </style>
 </head>
@@ -176,7 +207,6 @@ tr:hover td{background:var(--surf2)}
       <span style="font-size:12px;color:var(--faint)">500</span>
     </div>
   </div>
-
   <!-- Re-check / diff mode -->
   <div class="recheck-toggle">
     <input type="checkbox" id="recheckChk">
@@ -219,18 +249,62 @@ tr:hover td{background:var(--surf2)}
 <!-- Validate panel -->
 <div class="validate-panel" id="validatePanel">
   <h3>🔍 Stream Validation</h3>
+
+  <!-- Controls: timeout + workers sliders -->
+  <div class="validate-controls">
+    <div>
+      <div class="vc-label">Timeout per stream &mdash; <span class="vc-val" id="timeoutVal">5</span>s</div>
+      <div class="range-row">
+        <span style="font-size:11px;color:var(--faint)">2</span>
+        <input type="range" id="timeoutRange" min="2" max="15" value="5">
+        <span style="font-size:11px;color:var(--faint)">15</span>
+      </div>
+    </div>
+    <div>
+      <div class="vc-label">Parallel workers &mdash; <span class="vc-val" id="workersVal">20</span></div>
+      <div class="range-row">
+        <span style="font-size:11px;color:var(--faint)">5</span>
+        <input type="range" id="workersRange" min="5" max="40" value="20">
+        <span style="font-size:11px;color:var(--faint)">40</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Real-time progress -->
   <div class="vp-progress" id="vpProgress"><div class="vp-bar" id="vpBar"></div></div>
+  <div class="vp-progress-text" id="vpProgressText"></div>
+
   <div class="validate-stats" id="validateStats"></div>
+
+  <!-- Filter + search bar -->
+  <div class="table-toolbar" id="tableToolbar" style="display:none">
+    <input type="text" id="tableSearch" placeholder="Search channel or group…" autocomplete="off">
+    <button class="filter-btn active-all" data-filter="all" id="fbAll">All</button>
+    <button class="filter-btn" data-filter="live" id="fbLive">✓ Live</button>
+    <button class="filter-btn" data-filter="dead" id="fbDead">✗ Dead</button>
+    <button class="filter-btn" data-filter="uncheckable" id="fbUnch">⚠ Auth</button>
+  </div>
+
   <div class="vp-table-wrap" id="vpTableWrap">
     <table>
-      <thead><tr><th>Channel</th><th>Group</th><th>Type</th><th>Status</th><th>URL</th></tr></thead>
+      <thead>
+        <tr>
+          <th data-col="name">Channel<span class="sort-icon">⇅</span></th>
+          <th data-col="group">Group<span class="sort-icon">⇅</span></th>
+          <th data-col="stream_type">Type<span class="sort-icon">⇅</span></th>
+          <th data-col="status">Status<span class="sort-icon">⇅</span></th>
+          <th data-col="url">URL</th>
+        </tr>
+      </thead>
       <tbody id="vpTableBody"></tbody>
     </table>
   </div>
   <div class="btn-row" style="margin-top:0;padding-top:0">
+    <button class="btn btn-primary" id="runValidateBtn">▶&nbsp; Run Validation</button>
+    <button class="btn btn-ghost" id="cancelValidateBtn" disabled>Cancel</button>
     <button class="btn btn-primary" id="saveFilteredBtn" disabled>💾&nbsp; Save Filtered M3U</button>
     <button class="btn btn-ghost" id="copyFilteredBtn" disabled>Copy Filtered</button>
-    <span style="font-size:11px;color:var(--muted);margin-left:4px">Dead channels removed &nbsp;·&nbsp; Auth-required channels kept</span>
+    <span style="font-size:11px;color:var(--muted);margin-left:4px">Dead channels removed</span>
   </div>
 </div>
 
@@ -268,6 +342,14 @@ const pagesInput = document.getElementById('pages');
 const pagesValEl = document.getElementById('pagesVal');
 pagesInput.addEventListener('input', () => pagesValEl.textContent = pagesInput.value);
 
+// ── Validate sliders ──────────────────────────────────────────────────────────
+const timeoutRange = document.getElementById('timeoutRange');
+const workersRange = document.getElementById('workersRange');
+const timeoutValEl = document.getElementById('timeoutVal');
+const workersValEl = document.getElementById('workersVal');
+timeoutRange.addEventListener('input', () => timeoutValEl.textContent = timeoutRange.value);
+workersRange.addEventListener('input', () => workersValEl.textContent = workersRange.value);
+
 // ── Re-check toggle ───────────────────────────────────────────────────────────
 const recheckChk  = document.getElementById('recheckChk');
 const recheckArea = document.getElementById('recheckArea');
@@ -276,9 +358,14 @@ recheckChk.addEventListener('change', () => {
 });
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let abortCtrl    = null;
-let m3uData      = null;
-let filteredM3u  = null;
+let abortCtrl       = null;
+let validateAbort   = null;
+let m3uData         = null;
+let filteredM3u     = null;
+let allResults      = [];    // full validate results
+let activeFilter    = 'all';
+let sortCol         = null;
+let sortDir         = 'asc';
 
 const $ = id => document.getElementById(id);
 
@@ -323,7 +410,7 @@ function getInputs(){
   const skipKnown=recheckChk.checked?($('recheckM3u').value||''):'';
   return{portal,mac,epg,types,maxPages,skipKnown};
 }
-function validate(){
+function validateInputs(){
   const{portal,mac,types}=getInputs();
   if(!portal){setStatus('\u26a0 Portal URL is required.','err');return false;}
   if(!mac){setStatus('\u26a0 MAC address is required.','err');return false;}
@@ -342,13 +429,15 @@ function pill(cls, text){
 function esc(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+function copyText(text){
+  return navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.resolve();
+}
 
 // ── Convert ───────────────────────────────────────────────────────────────────
 $('convertBtn').addEventListener('click', async () => {
-  if(!validate()) return;
+  if(!validateInputs()) return;
   const{portal,mac,epg,types,maxPages,skipKnown}=getInputs();
-  m3uData=null;
-  filteredM3u=null;
+  m3uData=null; filteredM3u=null;
   $('saveBtn').disabled=true;
   $('copyBtn').disabled=true;
   $('validateBtn').disabled=true;
@@ -400,7 +489,7 @@ $('convertBtn').addEventListener('click', async () => {
   }
 });
 
-// ── Cancel ────────────────────────────────────────────────────────────────────
+// ── Cancel convert ────────────────────────────────────────────────────────────
 $('cancelBtn').addEventListener('click',()=>{
   if(abortCtrl){abortCtrl.abort();setStatus('Cancelling\u2026');}
 });
@@ -420,102 +509,251 @@ $('testBtn').addEventListener('click', async ()=>{
   finally{setBusy(false);}
 });
 
-// ── Validate Streams ──────────────────────────────────────────────────────────
-$('validateBtn').addEventListener('click', async ()=>{
-  if(!m3uData){setStatus('\u26a0 Convert first to get a playlist.','err');return;}
-  // show panel, reset state
-  const panel=$('validatePanel');
-  panel.classList.add('visible');
+// ── Open validate panel ───────────────────────────────────────────────────────
+$('validateBtn').addEventListener('click',()=>{
+  $('validatePanel').classList.add('visible');
+  $('validatePanel').scrollIntoView({behavior:'smooth',block:'start'});
+  allResults=[];
   $('vpTableBody').innerHTML='';
   $('vpTableWrap').classList.remove('visible');
+  $('tableToolbar').style.display='none';
+  $('validateStats').innerHTML='';
+  $('vpProgress').classList.remove('visible');
+  $('vpProgressText').textContent='';
+  $('saveFilteredBtn').disabled=true;
+  $('copyFilteredBtn').disabled=true;
+  filteredM3u=null;
+});
+
+// ── Validate progress animation ───────────────────────────────────────────────
+let _vpAnimFrame=null;
+let _vpTarget=0;
+let _vpCurrent=0;
+function animateVpBar(pct){
+  _vpTarget=pct;
+  if(_vpAnimFrame) return;
+  function step(){
+    const diff=_vpTarget-_vpCurrent;
+    if(Math.abs(diff)<0.5){_vpCurrent=_vpTarget;}
+    else{_vpCurrent+=diff*0.12;}
+    $('vpBar').style.width=_vpCurrent+'%';
+    if(Math.abs(_vpTarget-_vpCurrent)>0.3){
+      _vpAnimFrame=requestAnimationFrame(step);
+    }else{
+      _vpCurrent=_vpTarget;
+      $('vpBar').style.width=_vpCurrent+'%';
+      _vpAnimFrame=null;
+    }
+  }
+  _vpAnimFrame=requestAnimationFrame(step);
+}
+
+// ── Run Validation ────────────────────────────────────────────────────────────
+$('runValidateBtn').addEventListener('click', async ()=>{
+  if(!m3uData){setStatus('\u26a0 Convert first to get an M3U.','err');return;}
+  const timeout=parseInt(timeoutRange.value)||5;
+  const workers=parseInt(workersRange.value)||20;
+  const total=(m3uData.match(/#EXTINF/g)||[]).length;
+
+  allResults=[];
+  $('vpTableBody').innerHTML='';
+  $('vpTableWrap').classList.remove('visible');
+  $('tableToolbar').style.display='none';
   $('validateStats').innerHTML='';
   $('saveFilteredBtn').disabled=true;
   $('copyFilteredBtn').disabled=true;
-  const vp=$('vpProgress'); vp.classList.add('visible');
-  const vbar=$('vpBar'); vbar.style.width='0%';
-  setStatus('Validating streams\u2026 (this may take a minute)');
-  $('validateBtn').disabled=true;
+  filteredM3u=null;
+
+  // Show progress bar immediately
+  _vpCurrent=0; _vpTarget=0;
+  $('vpProgress').classList.add('visible');
+  animateVpBar(0);
+  $('vpProgressText').textContent=`Preparing ${total} channels\u2026`;
+
+  $('runValidateBtn').disabled=true;
+  $('cancelValidateBtn').disabled=false;
+
+  // Simulate incremental progress during the single-batch API call.
+  // We tick progress from 0→90% over estimated time (total/workers * timeout * 1000 ms),
+  // then jump to 100% when the response arrives.
+  const estimatedMs = Math.max((total / workers) * timeout * 1000, 3000);
+  const tickInterval = 300;
+  const ticksTotal = estimatedMs / tickInterval;
+  let tick = 0;
+  const progressTimer = setInterval(()=>{
+    tick++;
+    const pct = Math.min(90, (tick/ticksTotal)*90);
+    animateVpBar(pct);
+    // Estimate channels done based on progress
+    const doneSoFar = Math.round((pct/100)*total);
+    $('vpProgressText').textContent=`Checking\u2026 ~${doneSoFar} / ${total} (${Math.round(pct)}%)`;
+  }, tickInterval);
+
+  validateAbort = new AbortController();
   try{
-    const res=await fetch('/api/validate',{
+    const res = await fetch('/api/validate',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({m3u:m3uData,timeout:5,workers:20}),
+      body:JSON.stringify({m3u:m3uData, timeout, workers}),
+      signal:validateAbort.signal,
     });
+    clearInterval(progressTimer);
     if(!res.ok){
       let err=`HTTP ${res.status}`;
       try{const j=await res.json();err=j.error||err;}catch(_){}
       throw new Error(err);
     }
-    const data=await res.json();
-    vbar.style.width='100%';
-    filteredM3u=data.filtered_m3u;
-    // stats badges
+    const data = await res.json();
+    animateVpBar(100);
+    $('vpProgressText').textContent=`Done — ${data.total} channels checked`;
+
+    allResults = data.results || [];
+    filteredM3u = data.filtered_m3u || null;
+
+    const {live=0,dead=0,uncheckable=0,total:tot=0} = data;
     $('validateStats').innerHTML=[
-      badge('stat-total',`${data.total} total`),
-      badge('stat-live',`\u2713 ${data.live} live`),
-      badge('stat-dead',`\u2717 ${data.dead} dead`),
-      badge('stat-unch',`\u26a0 ${data.uncheckable} auth-required`),
+      badge('stat-total',`${tot} total`),
+      badge('stat-live',`✓ ${live} live`),
+      badge('stat-dead',`✗ ${dead} dead`),
+      badge('stat-unch',`⚠ ${uncheckable} auth`),
     ].join('');
-    // populate table
-    const tbody=$('vpTableBody');
-    tbody.innerHTML='';
-    for(const r of data.results){
-      const statusPill=r.status==='live'?pill('pill-live','LIVE'):
-                       r.status==='dead'?pill('pill-dead','DEAD'):
-                       pill('pill-unch','AUTH');
-      const typePill=r.stream_type==='audio'?pill('pill-audio','audio'):pill('pill-video','video');
-      const tr=document.createElement('tr');
-      tr.innerHTML=`
-        <td>${esc(r.name)}</td>
-        <td style="color:var(--muted);font-size:11px">${esc(r.group)}</td>
-        <td>${typePill}</td>
-        <td>${statusPill} <span style="font-size:10px;color:var(--faint)">${esc(r.reason||'')}</span></td>
-        <td class="td-url" title="${esc(r.url)}">${esc(r.url)}</td>
-      `;
-      tbody.appendChild(tr);
-    }
+
+    // Reset filter & sort
+    activeFilter='all'; sortCol=null; sortDir='asc';
+    document.querySelectorAll('.filter-btn').forEach(b=>b.className='filter-btn');
+    $('fbAll').classList.add('active-all');
+    document.querySelectorAll('th[data-col]').forEach(th=>{
+      th.classList.remove('sort-asc','sort-desc');
+      th.querySelector('.sort-icon').textContent='⇅';
+    });
+
+    renderTable();
     $('vpTableWrap').classList.add('visible');
-    $('saveFilteredBtn').disabled=false;
-    $('copyFilteredBtn').disabled=false;
-    setStatus(`\u2713 Validation done \u2014 ${data.live} live, ${data.dead} dead, ${data.uncheckable} auth-required`,'ok');
+    $('tableToolbar').style.display='flex';
+    $('saveFilteredBtn').disabled=!filteredM3u;
+    $('copyFilteredBtn').disabled=!filteredM3u;
   }catch(e){
-    setStatus(`\u2717 Validation failed: ${e.message}`,'err');
-    log(`Validate ERROR: ${e.message}`,'err');
-    vp.classList.remove('visible');
+    clearInterval(progressTimer);
+    if(e.name==='AbortError'){
+      $('vpProgressText').textContent='Validation cancelled.';
+      animateVpBar(0);
+    }else{
+      $('vpProgressText').textContent=`\u2717 ${e.message}`;
+    }
   }finally{
-    $('validateBtn').disabled=false;
+    $('runValidateBtn').disabled=false;
+    $('cancelValidateBtn').disabled=true;
+    validateAbort=null;
   }
 });
 
-// ── Save / Copy filtered M3U ──────────────────────────────────────────────────
-$('saveFilteredBtn').addEventListener('click',()=>{
-  if(!filteredM3u) return;
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([filteredM3u],{type:'audio/x-mpegurl'}));
-  a.download='playlist-validated.m3u';
-  a.click();
-  URL.revokeObjectURL(a.href);
-});
-$('copyFilteredBtn').addEventListener('click', async ()=>{
-  if(!filteredM3u) return;
-  try{await navigator.clipboard.writeText(filteredM3u);setStatus('\u2713 Filtered M3U copied!');}
-  catch{setStatus('\u26a0 Copy failed — use Save button.','err');}
+$('cancelValidateBtn').addEventListener('click',()=>{
+  if(validateAbort){validateAbort.abort();}
 });
 
-// ── Save / Copy original M3U ──────────────────────────────────────────────────
-$('saveBtn').addEventListener('click',()=>{
-  if(!m3uData) return;
+// ── Table render ──────────────────────────────────────────────────────────────
+function getFilteredSorted(){
+  const q = ($('tableSearch').value||'').toLowerCase();
+  let rows = allResults.filter(r=>{
+    if(activeFilter!=='all' && r.status!==activeFilter) return false;
+    if(q && !r.name.toLowerCase().includes(q) && !r.group.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  if(sortCol){
+    rows=rows.slice().sort((a,b)=>{
+      const av=String(a[sortCol]||'').toLowerCase();
+      const bv=String(b[sortCol]||'').toLowerCase();
+      const cmp=av<bv?-1:av>bv?1:0;
+      return sortDir==='asc'?cmp:-cmp;
+    });
+  }
+  return rows;
+}
+
+function renderTable(){
+  const rows=getFilteredSorted();
+  const tb=$('vpTableBody');
+  tb.innerHTML='';
+  rows.forEach(r=>{
+    const statusPill = r.status==='live'?pill('pill-live','LIVE')
+                      :r.status==='dead'?pill('pill-dead','DEAD')
+                      :pill('pill-unch','AUTH');
+    const typePill = r.stream_type==='audio'?pill('pill-audio','audio'):pill('pill-video','video');
+    const reason = r.reason?`<div class="reason-text" title="${esc(r.reason)}">${esc(r.reason)}</div>`:'';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${esc(r.name)}</td>
+      <td style="color:var(--muted);font-size:11px">${esc(r.group||'')}</td>
+      <td>${typePill}</td>
+      <td>${statusPill}${reason}</td>
+      <td>
+        <div class="td-url-wrap">
+          <span class="td-url" title="${esc(r.url)}">${esc(r.url)}</span>
+          <button class="copy-url-btn" data-url="${esc(r.url)}" aria-label="Copy URL">copy</button>
+        </div>
+      </td>`;
+    tb.appendChild(tr);
+  });
+}
+
+// ── Copy URL per row ──────────────────────────────────────────────────────────
+$('vpTableBody').addEventListener('click', e=>{
+  const btn=e.target.closest('.copy-url-btn');
+  if(!btn) return;
+  const url=btn.dataset.url;
+  copyText(url).then(()=>{
+    btn.textContent='copied!';
+    btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='copy';btn.classList.remove('copied');},1500);
+  });
+});
+
+// ── Filter buttons ────────────────────────────────────────────────────────────
+document.querySelectorAll('.filter-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    activeFilter=btn.dataset.filter;
+    document.querySelectorAll('.filter-btn').forEach(b=>b.className='filter-btn');
+    const cls={all:'active-all',live:'active-live',dead:'active-dead',uncheckable:'active-unch'}[activeFilter]||'active-all';
+    btn.classList.add(cls);
+    renderTable();
+  });
+});
+
+// ── Search ────────────────────────────────────────────────────────────────────
+$('tableSearch').addEventListener('input', ()=>renderTable());
+
+// ── Column sort ───────────────────────────────────────────────────────────────
+document.querySelectorAll('th[data-col]').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const col=th.dataset.col;
+    if(col==='url') return; // no sort on URL column
+    if(sortCol===col){
+      sortDir=sortDir==='asc'?'desc':'asc';
+    }else{
+      sortCol=col; sortDir='asc';
+    }
+    document.querySelectorAll('th[data-col]').forEach(h=>{
+      h.classList.remove('sort-asc','sort-desc');
+      h.querySelector('.sort-icon').textContent='⇅';
+    });
+    th.classList.add(sortDir==='asc'?'sort-asc':'sort-desc');
+    th.querySelector('.sort-icon').textContent=sortDir==='asc'?'↑':'↓';
+    renderTable();
+  });
+});
+
+// ── Save / Copy M3U ───────────────────────────────────────────────────────────
+function downloadM3u(text, filename){
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([m3uData],{type:'audio/x-mpegurl'}));
-  a.download='playlist.m3u';
+  a.href=URL.createObjectURL(new Blob([text],{type:'application/x-mpegurl'}));
+  a.download=filename;
   a.click();
-  URL.revokeObjectURL(a.href);
-});
-$('copyBtn').addEventListener('click', async ()=>{
-  if(!m3uData) return;
-  try{await navigator.clipboard.writeText(m3uData);setStatus('\u2713 Copied to clipboard!');}
-  catch{setStatus('\u26a0 Copy failed \u2014 use the Save button instead.','err');}
-});
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+$('saveBtn').addEventListener('click',()=>{ if(m3uData) downloadM3u(m3uData,'playlist.m3u'); });
+$('copyBtn').addEventListener('click',()=>{ if(m3uData) copyText(m3uData).then(()=>{$('copyBtn').title='Copied!';setTimeout(()=>$('copyBtn').title='Copy M3U',1500);}); });
+$('saveFilteredBtn').addEventListener('click',()=>{ if(filteredM3u) downloadM3u(filteredM3u,'playlist-filtered.m3u'); });
+$('copyFilteredBtn').addEventListener('click',()=>{ if(filteredM3u) copyText(filteredM3u); });
 </script>
 </body>
 </html>
