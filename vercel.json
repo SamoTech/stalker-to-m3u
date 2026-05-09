@@ -1,6 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [
-    { "source": "/", "destination": "/public/index.html" }
+  "builds": [
+    { "src": "public/index.html", "use": "@vercel/static" },
+    { "src": "api/convert.py",    "use": "@vercel/python" },
+    { "src": "api/test.py",       "use": "@vercel/python" }
+  ],
+  "routes": [
+    { "src": "/api/convert", "dest": "/api/convert.py" },
+    { "src": "/api/test",    "dest": "/api/test.py" },
+    { "src": "/",            "dest": "/public/index.html" }
   ]
 }

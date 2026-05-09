@@ -16,12 +16,6 @@ import json, hashlib, re, time
 import urllib.request, urllib.parse, urllib.error
 from urllib.parse import urlencode
 
-# Vercel per-function config (maxDuration in seconds, memory in MB)
-config = {
-    "maxDuration": 300,
-    "memory": 1024,
-}
-
 
 # ---------------------------------------------------------------------------
 # Core helpers  (stdlib-only, mirrors stalker_to_m3u.py logic)
