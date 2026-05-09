@@ -1,93 +1,70 @@
 # stalker-to-m3u
 
-Convert a **Stalker / Ministra IPTV portal** (MAC-based auth) to a standard `.m3u` playlist — using a simple Python CLI script. No proxy needed, no browser, runs directly from your terminal.
+Convert a **Stalker / Ministra IPTV portal** (MAC-based auth) to a standard `.m3u` playlist.
+
+Available as:
+- **Web app** — hosted on Vercel, browser UI + Python serverless API
+- **Python CLI** — run locally, no proxy needed
 
 ---
 
-## Requirements
+## Web App (Vercel)
 
-- Python 3.10+
-- `requests` library
+Deploy to Vercel in one click:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/SamoTech/stalker-to-m3u)
+
+Or manually:
+
+```bash
+npm i -g vercel
+vercel
+```
+
+### How it works
+
+The frontend (`public/index.html`) sends a `POST /api/convert` request with your portal URL and MAC.
+The Python serverless function (`api/convert.py`) runs **server-to-server** directly against the Stalker portal — no CORS proxy needed. The M3U file is streamed back to the browser for download.
+
+Endpoints:
+- `POST /api/convert` — full conversion, returns `.m3u` file
+- `GET /api/test?portal=http://HOST:PORT` — test portal reachability
+
+---
+
+## Python CLI
 
 ```bash
 pip install requests
-# or
-pip install -r requirements.txt
-```
 
----
-
-## Usage
-
-### Basic — fetch Live TV
-
-```bash
+# Fetch live TV
 python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX
+
+# Fetch live + VOD + series
+python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX \
+  --types live vod series --output my_playlist.m3u
+
+# Verbose + more pages
+python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX \
+  --max-pages 200 -v
 ```
 
-Outputs `playlist.m3u` in the current directory.
-
-### Custom output file
-
-```bash
-python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX --output my_tv.m3u
-```
-
-### Fetch Live + VOD + Series
-
-```bash
-python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX --types live vod series
-```
-
-### Set max pages (each page ≈ 14–20 channels)
-
-```bash
-python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX --max-pages 200
-```
-
-### Add EPG URL to M3U header
-
-```bash
-python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX --epg http://epg.example.com/epg.xml
-```
-
-### Verbose output
-
-```bash
-python stalker_to_m3u.py --portal http://HOST:PORT --mac 00:1A:79:XX:XX:XX -v
-```
-
----
-
-## All Arguments
+### All CLI arguments
 
 | Argument | Default | Description |
 |---|---|---|
-| `--portal` | *(required)* | Portal base URL, e.g. `http://host:8080` |
-| `--mac` | *(required)* | MAC address in `00:1A:79:XX:XX:XX` format |
-| `--types` | `live` | Space-separated: `live`, `vod`, `series` |
-| `--max-pages` | `50` | Max pages to fetch per type |
-| `--output` | `playlist.m3u` | Output `.m3u` file path |
-| `--epg` | *(empty)* | EPG URL to embed in M3U header |
-| `--timeout` | `15` | HTTP request timeout in seconds |
-| `--verbose` / `-v` | off | Show per-page progress |
+| `--portal` | *(required)* | Portal base URL |
+| `--mac` | *(required)* | MAC address (`00:1A:79:XX:XX:XX`) |
+| `--types` | `live` | `live`, `vod`, `series` |
+| `--max-pages` | `50` | Max pages per type |
+| `--output` | `playlist.m3u` | Output file |
+| `--epg` | *(empty)* | EPG URL for M3U header |
+| `--timeout` | `15` | Request timeout (seconds) |
+| `--verbose` / `-v` | off | Per-page progress |
 
 ---
 
-## How It Works
-
-The script replicates exactly what a **MAG200 set-top box** sends to the portal:
-
-1. **Handshake** — sends the MAC in a cookie, gets an auth token back
-2. **Profile** — fetches subscriber info (name, expiry date)
-3. **Genres/Categories** — maps `genre_id` → group name for M3U `group-title`
-4. **Paginated channel list** — iterates all pages until done
-5. **Stream URL extraction** — strips Stalker's internal `ffmpeg`/`auto` prefix from `cmd` field; falls back to `create_link` API if needed
-6. **M3U generation** — writes standard EXTM3U with `tvg-id`, `tvg-name`, `tvg-logo`, `group-title`, `tvg-chno`
-
----
-
-## Output Format
+## M3U Output Format
 
 ```m3u
 #EXTM3U
@@ -97,9 +74,11 @@ http://host:port/play/...
 
 ---
 
-## Notes
+## Auth Flow
 
-- The script talks **directly** to the portal — no CORS proxy needed (pure Python HTTP)
-- Works on Windows, Linux, macOS
-- Stream URLs expire when the token expires — re-run the script to refresh
-- Use `--max-pages 999` if you want to guarantee all channels are fetched
+1. **Handshake** — MAG200 headers + MAC cookie → bearer token
+2. **Profile** — subscriber name + expiry
+3. **Genres/Categories** — map `genre_id` → group name
+4. **Paginated channels** — all pages, deduplicated
+5. **Stream URL** — strip `ffmpeg`/`auto` prefix or call `create_link`
+6. **M3U** — standard EXTM3U with all metadata

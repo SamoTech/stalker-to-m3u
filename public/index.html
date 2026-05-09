@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stalker → M3U</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="light"]{
+--bg:#f7f6f2;--surface:#f0efea;--surface2:#e8e6e0;--border:#d4d1ca;
+--text:#1c1a14;--muted:#6b6a65;--faint:#b0aea8;
+--primary:#01696f;--primary-h:#0c4e54;
+--success:#437a22;--error:#a12c7b;--warn:#964219;
+--radius:10px;--shadow:0 2px 8px rgba(0,0,0,.08);
+--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+[data-theme="dark"]{
+--bg:#111110;--surface:#1a1917;--surface2:#222120;--border:#333230;
+--text:#d6d4d0;--muted:#7a7876;--faint:#4a4846;
+--primary:#4f98a3;--primary-h:#3a828d;
+--success:#6daa45;--error:#d163a7;--warn:#fdab43;
+--shadow:0 2px 12px rgba(0,0,0,.4);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+body{font-family:var(--font);font-size:15px;color:var(--text);background:var(--bg);min-height:100dvh;display:flex;flex-direction:column}
+a,button,[role=button]{transition:color .15s,background .15s,border-color .15s,box-shadow .15s}
+button{cursor:pointer;background:none;border:none;font:inherit;color:inherit}
+
+/* Layout */
+.app{max-width:680px;width:100%;margin:0 auto;padding:2rem 1.25rem 4rem}
+
+/* Header */
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2.5rem}
+.logo{display:flex;align-items:center;gap:.6rem;font-size:1.15rem;font-weight:600;letter-spacing:-.02em}
+.logo svg{flex-shrink:0}
+.theme-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+border-radius:50%;border:1px solid var(--border);color:var(--muted)}
+.theme-btn:hover{color:var(--text);background:var(--surface2)}
+
+/* Card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-bottom:1rem;box-shadow:var(--shadow)}
+.card-title{font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:1rem}
+
+/* Form */
+.field{margin-bottom:1rem}
+.field:last-child{margin-bottom:0}
+label{display:block;font-size:.8rem;font-weight:500;color:var(--muted);margin-bottom:.35rem}
+input[type=text],input[type=url]{
+width:100%;padding:.6rem .75rem;font:inherit;font-family:var(--mono);font-size:.85rem;
+background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;
+}
+input:focus{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in oklab,var(--primary) 18%,transparent)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+
+/* Checkboxes */
+.checks{display:flex;gap:1rem;flex-wrap:wrap}
+.check-label{display:flex;align-items:center;gap:.4rem;font-size:.85rem;cursor:pointer;user-select:none}
+.check-label input{accent-color:var(--primary);width:15px;height:15px;cursor:pointer}
+
+/* Range */
+.range-row{display:flex;align-items:center;gap:.75rem}
+input[type=range]{flex:1;accent-color:var(--primary)}
+.range-val{font-family:var(--mono);font-size:.85rem;color:var(--primary);min-width:3ch;text-align:right}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.65rem 1.25rem;
+border-radius:6px;font-size:.875rem;font-weight:500;border:1px solid transparent;cursor:pointer}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-primary:hover{background:var(--primary-h);border-color:var(--primary-h)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:transparent;border-color:var(--border);color:var(--muted)}
+.btn-ghost:hover{background:var(--surface2);color:var(--text)}
+.btn-sm{padding:.4rem .8rem;font-size:.8rem}
+.actions{display:flex;gap:.6rem;flex-wrap:wrap}
+
+/* Status / log */
+.status{display:none;margin-top:1rem;padding:.85rem 1rem;border-radius:8px;
+font-size:.85rem;line-height:1.6;border:1px solid transparent}
+.status.info{display:block;background:color-mix(in oklab,var(--primary) 10%,var(--bg));
+border-color:color-mix(in oklab,var(--primary) 30%,transparent);color:var(--text)}
+.status.success{display:block;background:color-mix(in oklab,var(--success) 10%,var(--bg));
+border-color:color-mix(in oklab,var(--success) 30%,transparent);color:var(--text)}
+.status.error{display:block;background:color-mix(in oklab,var(--error) 10%,var(--bg));
+border-color:color-mix(in oklab,var(--error) 30%,transparent);color:var(--text)}
+.status.warn{display:block;background:color-mix(in oklab,var(--warn) 10%,var(--bg));
+border-color:color-mix(in oklab,var(--warn) 30%,transparent);color:var(--text)}
+
+/* Progress */
+.progress-wrap{display:none;margin-top:1rem}
+.progress-wrap.visible{display:block}
+.progress-bar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin-bottom:.5rem}
+.progress-fill{height:100%;background:var(--primary);border-radius:2px;transition:width .3s ease;width:0%}
+.progress-label{font-size:.78rem;color:var(--muted)}
+
+/* Result card */
+.result-card{display:none;margin-top:1rem}
+.result-card.visible{display:block}
+.result-info{font-size:.82rem;color:var(--muted);margin-bottom:1rem;line-height:1.7}
+.result-info strong{color:var(--text)}
+
+/* Profile chip */
+.profile-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem}
+.chip{display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .6rem;border-radius:20px;
+border:1px solid var(--border);font-size:.75rem;background:var(--surface2)}
+.chip-key{color:var(--muted)}
+.chip-val{color:var(--text);font-weight:500}
+
+/* Steps */
+.steps{display:flex;gap:0;margin-bottom:1.5rem;position:relative}
+.steps::before{content:'';position:absolute;top:14px;left:14px;right:14px;height:2px;background:var(--border);z-index:0}
+.step{display:flex;flex-direction:column;align-items:center;flex:1;position:relative;z-index:1;gap:.35rem}
+.step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);background:var(--bg);
+display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;
+color:var(--muted);transition:all .3s}
+.step-label{font-size:.7rem;color:var(--muted);text-align:center;transition:color .3s}
+.step.active .step-dot{border-color:var(--primary);background:var(--primary);color:#fff}
+.step.active .step-label{color:var(--primary)}
+.step.done .step-dot{border-color:var(--success);background:var(--success);color:#fff}
+.step.done .step-label{color:var(--success)}
+
+@media(max-width:480px){.row{grid-template-columns:1fr}.app{padding:1.25rem .9rem 3rem}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-label="Stalker to M3U logo">
+        <rect width="28" height="28" rx="7" fill="var(--primary)"/>
+        <path d="M7 10h5l2 4 2-6 2 6 1-4h2" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="7" y="17" width="14" height="2" rx="1" fill="#fff" opacity=".5"/>
+      </svg>
+      <span>Stalker <span style="color:var(--muted);font-weight:400">→</span> M3U</span>
+    </div>
+    <button class="theme-btn" data-theme-toggle aria-label="Toggle theme">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps" id="steps">
+    <div class="step active" id="step1"><div class="step-dot">1</div><div class="step-label">Config</div></div>
+    <div class="step" id="step2"><div class="step-dot">2</div><div class="step-label">Fetch</div></div>
+    <div class="step" id="step3"><div class="step-dot">3</div><div class="step-label">Download</div></div>
+  </div>
+
+  <!-- Portal config -->
+  <div class="card" id="configCard">
+    <div class="card-title">Portal Configuration</div>
+    <div class="field">
+      <label for="portal">Portal URL</label>
+      <input type="url" id="portal" placeholder="http://provider.com:8080" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="mac">MAC Address</label>
+      <input type="text" id="mac" placeholder="00:1A:79:XX:XX:XX" maxlength="17" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="epg">EPG URL <span style="color:var(--faint);font-weight:400">(optional)</span></label>
+      <input type="url" id="epg" placeholder="http://epg.example.com/epg.xml" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label>Content Types</label>
+      <div class="checks">
+        <label class="check-label"><input type="checkbox" id="typeLive" checked> Live TV</label>
+        <label class="check-label"><input type="checkbox" id="typeVod"> VOD</label>
+        <label class="check-label"><input type="checkbox" id="typeSeries"> Series</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Max Pages <span style="color:var(--faint);font-weight:400">(per type)</span></label>
+      <div class="range-row">
+        <input type="range" id="maxPages" min="1" max="200" value="50" step="1">
+        <span class="range-val" id="maxPagesVal">50</span>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:1.25rem">
+      <button class="btn btn-primary" id="convertBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+        Convert to M3U
+      </button>
+      <button class="btn btn-ghost btn-sm" id="testBtn">Test Portal</button>
+    </div>
+
+    <!-- Status -->
+    <div class="status" id="status"></div>
+
+    <!-- Progress -->
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-label" id="progressLabel">Connecting…</div>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div class="card result-card" id="resultCard">
+    <div class="card-title">Result</div>
+    <div class="profile-row" id="profileRow"></div>
+    <div class="result-info" id="resultInfo"></div>
+    <div class="actions">
+      <button class="btn btn-primary" id="downloadBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+        Download .m3u
+      </button>
+      <button class="btn btn-ghost btn-sm" id="copyBtn">Copy M3U text</button>
+      <button class="btn btn-ghost btn-sm" id="resetBtn">New conversion</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  // Theme toggle
+  const root = document.documentElement;
+  const tb = document.querySelector('[data-theme-toggle]');
+  let theme = root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  root.setAttribute('data-theme', theme);
+  tb && tb.addEventListener('click', () => {
+    theme = theme==='dark'?'light':'dark';
+    root.setAttribute('data-theme', theme);
+  });
+
+  // Range
+  const rng = document.getElementById('maxPages');
+  const rngVal = document.getElementById('maxPagesVal');
+  rng.addEventListener('input', () => rngVal.textContent = rng.value);
+
+  // MAC auto-format
+  const macInput = document.getElementById('mac');
+  macInput.addEventListener('input', function(){
+    let v = this.value.replace(/[^0-9A-Fa-f]/g,'');
+    let parts = [];
+    for(let i=0;i<v.length&&parts.length<6;i+=2) parts.push(v.slice(i,i+2));
+    let cursor = this.selectionStart;
+    this.value = parts.join(':');
+  });
+
+  // Status helpers
+  const statusEl = document.getElementById('status');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  const progressLabel = document.getElementById('progressLabel');
+  const resultCard = document.getElementById('resultCard');
+  const resultInfo = document.getElementById('resultInfo');
+  const profileRow = document.getElementById('profileRow');
+
+  function setStatus(msg, type='info'){
+    statusEl.className = `status ${type}`;
+    statusEl.innerHTML = msg;
+  }
+  function clearStatus(){ statusEl.className='status'; statusEl.innerHTML=''; }
+  function setProgress(pct, label){
+    progressWrap.className='progress-wrap visible';
+    progressFill.style.width = pct+'%';
+    progressLabel.textContent = label;
+  }
+  function hideProgress(){ progressWrap.className='progress-wrap'; }
+
+  function setStep(n){
+    [1,2,3].forEach(i=>{
+      const el = document.getElementById('step'+i);
+      el.className = 'step' + (i<n?' done':i===n?' active':'');
+    });
+  }
+
+  function chip(key, val){
+    return `<span class="chip"><span class="chip-key">${key}</span><span class="chip-val">${val||'—'}</span></span>`;
+  }
+
+  let m3uBlob = null;
+  let m3uText = '';
+
+  // Test portal
+  document.getElementById('testBtn').addEventListener('click', async () => {
+    const portal = document.getElementById('portal').value.trim();
+    if(!portal) return setStatus('Enter a portal URL first.', 'warn');
+    setStatus('Testing portal reachability…', 'info');
+    try {
+      const r = await fetch(`/api/test?portal=${encodeURIComponent(portal)}`);
+      const d = await r.json();
+      if(d.ok) setStatus('✓ Portal is reachable!', 'success');
+      else setStatus(`✗ Portal unreachable: ${d.error}`, 'error');
+    } catch(e) { setStatus(`✗ Request failed: ${e.message}`, 'error'); }
+  });
+
+  // Convert
+  document.getElementById('convertBtn').addEventListener('click', async () => {
+    const portal = document.getElementById('portal').value.trim();
+    const mac = document.getElementById('mac').value.trim();
+    const epg = document.getElementById('epg').value.trim();
+    const maxPages = parseInt(rng.value);
+    const types = [];
+    if(document.getElementById('typeLive').checked) types.push('live');
+    if(document.getElementById('typeVod').checked) types.push('vod');
+    if(document.getElementById('typeSeries').checked) types.push('series');
+
+    if(!portal) return setStatus('Portal URL is required.', 'warn');
+    if(!mac) return setStatus('MAC address is required.', 'warn');
+    if(!types.length) return setStatus('Select at least one content type.', 'warn');
+    if(!/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(mac)) return setStatus('Invalid MAC address format. Use 00:1A:79:XX:XX:XX', 'warn');
+
+    const btn = document.getElementById('convertBtn');
+    btn.disabled = true;
+    resultCard.className = 'card result-card';
+    clearStatus();
+    setStep(2);
+    setProgress(10, 'Authenticating with portal…');
+
+    try {
+      setProgress(25, 'Fetching channels (this may take a minute)…');
+
+      const payload = { portal, mac, types, maxPages, epgUrl: epg, format: 'm3u' };
+      const resp = await fetch('/api/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      setProgress(85, 'Building M3U…');
+
+      if(!resp.ok){
+        let err = 'Server error';
+        try{ const d = await resp.json(); err = d.error || err; }catch{}
+        throw new Error(err);
+      }
+
+      m3uText = await resp.text();
+      const lines = m3uText.split('\n').filter(l=>l.startsWith('#EXTINF')).length;
+      m3uBlob = new Blob([m3uText], {type:'application/x-mpegurl'});
+
+      setProgress(100, 'Done!');
+      setTimeout(hideProgress, 800);
+      clearStatus();
+      setStep(3);
+
+      profileRow.innerHTML = [
+        chip('Portal', new URL(portal).hostname),
+        chip('MAC', mac),
+        chip('Channels', lines),
+        chip('Types', types.join(', ')),
+      ].join('');
+
+      resultInfo.innerHTML = `
+        Fetched <strong>${lines} channels</strong> from <strong>${types.join(' + ')}</strong>.<br>
+        Your playlist is ready to download and use in any IPTV player (VLC, TiviMate, Kodi, etc.).
+      `;
+      resultCard.className = 'card result-card visible';
+      resultCard.scrollIntoView({behavior:'smooth',block:'start'});
+
+    } catch(e){
+      hideProgress();
+      setStatus(`✗ ${e.message}`, 'error');
+      setStep(1);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Download
+  document.getElementById('downloadBtn').addEventListener('click', () => {
+    if(!m3uBlob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(m3uBlob);
+    a.download = 'playlist.m3u';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  // Copy
+  document.getElementById('copyBtn').addEventListener('click', () => {
+    if(!m3uText) return;
+    navigator.clipboard.writeText(m3uText).then(()=>{
+      const b = document.getElementById('copyBtn');
+      b.textContent = 'Copied!';
+      setTimeout(()=>b.textContent='Copy M3U text',2000);
+    });
+  });
+
+  // Reset
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    m3uBlob = null; m3uText = '';
+    resultCard.className = 'card result-card';
+    clearStatus();
+    setStep(1);
+  });
+})();
+</script>
+</body>
+</html>
