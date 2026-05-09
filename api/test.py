@@ -8,53 +8,28 @@ returns portal health, subscriber info, and content counts.
 """
 
 from http.server import BaseHTTPRequestHandler
-import json, hashlib, time, re
-import urllib.request, urllib.error, urllib.parse
-from urllib.parse import urlencode, urlparse, parse_qs
+import json, time, re
+import urllib.request, urllib.error
+from urllib.parse import urlparse, parse_qs
+
+# Re-use all shared helpers from convert.py — single source of truth
+from convert import (
+    build_headers, portal_url, http_get,
+    mac_to_serial, mac_to_device_id, mac_to_signature,
+    resolve_portal_base, _is_ssrf_safe,
+    fetch_genres,
+)
 
 
-# ── Stalker helpers (minimal, no shared deps needed here) ─────────────────────
+# ── helpers local to test only ─────────────────────────────────────────────────
 
-def mac_to_serial(mac):
-    import hashlib
-    return hashlib.md5(mac.replace(':', '').upper().encode()).hexdigest()[:13].upper()
-
-def mac_to_device_id(mac):
-    import hashlib
-    return hashlib.sha256(mac.replace(':', '').upper().encode()).hexdigest()[:64].upper()
-
-def mac_to_signature(mac):
-    import hashlib
-    return hashlib.sha256((mac.replace(':', '').upper() + 'stalker').encode()).hexdigest()[:64].upper()
-
-def build_headers(mac, token=''):
-    h = {
-        'User-Agent': ('Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 '
-                       '(KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3'),
-        'X-User-Agent': 'Model: MAG200; Link: Ethernet',
-        'Cookie': f'mac={mac}; stb_lang=en; timezone=Europe/London',
-        'Accept': '*/*',
-    }
-    if token:
-        h['Authorization'] = f'Bearer {token}'
-    return h
-
-def portal_url(base, action, **params):
-    params['action'] = action
-    return f"{base.rstrip('/')}/portal.php?{urlencode(params)}"
-
-def http_get(url, headers, timeout=15):
-    req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode('utf-8', errors='replace'))
-
-def count_items(base, mac, token, media_type, page=1):
+def count_items(base, mac, token, media_type):
     """Fetch page 1 and return total_items reported by portal."""
     t = {'live': 'itv', 'vod': 'vod', 'series': 'series'}.get(media_type, 'itv')
     try:
         url = portal_url(base, 'get_ordered_list',
             type=t, genre='*', force_ch_link_check=0, fav=0,
-            sortby='number', hd=0, p=page,
+            sortby='number', hd=0, p=1,
             JsHttpRequest=f'{int(time.time() * 1000)}-xml')
         js = http_get(url, build_headers(mac, token)).get('js', {})
         if isinstance(js, list):
@@ -64,7 +39,7 @@ def count_items(base, mac, token, media_type, page=1):
         return -1
 
 
-# ── Vercel handler ────────────────────────────────────────────────────────────
+# ── Vercel handler ─────────────────────────────────────────────────────────────
 
 class handler(BaseHTTPRequestHandler):
 
@@ -100,11 +75,24 @@ class handler(BaseHTTPRequestHandler):
         if mac and not re.match(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', mac):
             return self.send_json(400, {'ok': False, 'error': f'Invalid MAC: {mac}'})
 
-        # ── Step 1: portal reachability ───────────────────────────────────────
+        # SSRF guard
+        ssrf_ok, ssrf_reason = _is_ssrf_safe(portal)
+        if not ssrf_ok:
+            return self.send_json(400, {'ok': False, 'error': f'Blocked portal URL: {ssrf_reason}'})
+
         t0 = time.time()
+
+        # ── Step 1: resolve portal path + reachability ────────────────────────
         try:
+            if mac:
+                resolved = resolve_portal_base(portal, mac)
+            else:
+                # No MAC — just try /portal.php for a basic reachability check
+                resolved = portal
+
+            probe_url = portal_url(resolved, 'handshake', type='stb', prehash=0)
             req = urllib.request.Request(
-                f"{portal}/portal.php",
+                probe_url,
                 headers={'User-Agent': 'stalker-to-m3u/1.0'}
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
@@ -114,27 +102,31 @@ class handler(BaseHTTPRequestHandler):
         except Exception as e:
             return self.send_json(200, {
                 'ok': False, 'reachable': False,
-                'error': str(e), 'ms': int((time.time() - t0) * 1000)
+                'error': str(e),
+                'ms': int((time.time() - t0) * 1000),
             })
-        reach_ms = int((time.time() - t0) * 1000)
 
+        reach_ms = int((time.time() - t0) * 1000)
         result = {
-            'ok':        True,
-            'reachable': True,
-            'status':    reach_status,
-            'ms':        reach_ms,
+            'ok':          True,
+            'reachable':   True,
+            'status':      reach_status,
+            'ms':          reach_ms,
+            'resolved_path': resolved,
         }
 
-        # ── Step 2: full auth flow (only if MAC provided) ─────────────────────
+        # ── Step 2: full auth flow (only if MAC provided) ─────────────────
         if not mac:
             result['note'] = 'Provide mac param for full portal inspection'
             return self.send_json(200, result)
 
         try:
-            # Handshake
-            t1    = time.time()
-            data  = http_get(portal_url(portal, 'handshake', type='stb', prehash=0),
-                             build_headers(mac))
+            # Handshake (resolve_portal_base already called above)
+            t1   = time.time()
+            data = http_get(
+                portal_url(resolved, 'handshake', type='stb', prehash=0),
+                build_headers(mac)
+            )
             token = data.get('js', {}).get('token') or data.get('token')
             if not token:
                 raise RuntimeError('No token in handshake response')
@@ -144,7 +136,7 @@ class handler(BaseHTTPRequestHandler):
             # Profile
             t2      = time.time()
             profile = http_get(
-                portal_url(portal, 'get_profile',
+                portal_url(resolved, 'get_profile',
                     hd=1, ver='ImageDescription: 0.2.18-r14-pub-250;',
                     num_banks=2, sn=mac_to_serial(mac), stb_type='MAG200',
                     image_version=218, video_out='hdmi',
@@ -169,9 +161,9 @@ class handler(BaseHTTPRequestHandler):
             # Content counts
             t3 = time.time()
             result['content'] = {
-                'live':   count_items(portal, mac, token, 'live'),
-                'vod':    count_items(portal, mac, token, 'vod'),
-                'series': count_items(portal, mac, token, 'series'),
+                'live':   count_items(resolved, mac, token, 'live'),
+                'vod':    count_items(resolved, mac, token, 'vod'),
+                'series': count_items(resolved, mac, token, 'series'),
             }
             result['content_ms'] = int((time.time() - t3) * 1000)
             result['total_ms']   = int((time.time() - t0) * 1000)
