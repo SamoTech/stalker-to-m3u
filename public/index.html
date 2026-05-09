@@ -29,14 +29,17 @@ html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
 body{min-height:100dvh;font-family:'Inter',system-ui,sans-serif;font-size:15px;color:var(--text);background:var(--bg);display:flex;flex-direction:column;align-items:center;padding:24px 16px 56px}
 a{color:var(--primary)}
 
+/* header */
 .header{width:100%;max-width:680px;display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
 .logo{font-size:20px;font-weight:600;letter-spacing:-.02em}
 .logo span{color:var(--primary)}
 .theme-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;color:var(--muted);cursor:pointer;transition:border-color .15s,color .15s}
 .theme-btn:hover{border-color:var(--primary);color:var(--primary)}
 
+/* card */
 .card{width:100%;max-width:680px;background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:16px;box-shadow:var(--shadow)}
 
+/* form */
 .field{margin-bottom:16px}
 .field:last-child{margin-bottom:0}
 label{display:block;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
@@ -49,6 +52,7 @@ input::placeholder{color:var(--faint)}
 .range-row{display:flex;align-items:center;gap:12px}
 input[type=range]{flex:1;accent-color:var(--primary);height:4px;cursor:pointer}
 
+/* recheck toggle */
 .recheck-toggle{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
 .recheck-toggle label{text-transform:none;font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted);margin-bottom:0;cursor:pointer}
 .recheck-toggle input[type=checkbox]{accent-color:var(--primary);width:14px;height:14px;cursor:pointer}
@@ -57,6 +61,7 @@ input[type=range]{flex:1;accent-color:var(--primary);height:4px;cursor:pointer}
 #recheckArea textarea:focus{border-color:var(--primary)}
 #recheckArea .hint{font-size:11px;color:var(--faint);margin-top:4px}
 
+/* buttons */
 .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;align-items:center}
 .btn{border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s,opacity .15s;font-family:inherit}
 .btn:disabled{opacity:.4;cursor:not-allowed}
@@ -71,15 +76,18 @@ input[type=range]{flex:1;accent-color:var(--primary);height:4px;cursor:pointer}
 .btn-icon{font-size:16px;padding:10px 14px}
 .ml-auto{margin-left:auto}
 
+/* progress */
 .progress-wrap{width:100%;max-width:680px;height:4px;background:var(--surf2);border-radius:4px;overflow:hidden;margin-bottom:8px;opacity:0;transition:opacity .2s}
 .progress-wrap.visible{opacity:1}
 .progress-bar{height:100%;width:0;background:var(--primary);border-radius:4px;transition:width .4s cubic-bezier(.16,1,.3,1)}
 .progress-bar.indeterminate{width:40%;animation:indeterminate 1.2s ease-in-out infinite}
 @keyframes indeterminate{0%{transform:translateX(-200%)}100%{transform:translateX(300%)}}
 
+/* status */
 .status{width:100%;max-width:680px;font-size:13px;color:var(--muted);min-height:20px;margin-bottom:10px;padding-left:2px}
 .status.ok{color:var(--success)}.status.err{color:var(--error)}
 
+/* log */
 .log-card{width:100%;max-width:680px;background:var(--log);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:none}
 .log-card.visible{display:block}
 .log-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border)}
@@ -89,6 +97,7 @@ input[type=range]{flex:1;accent-color:var(--primary);height:4px;cursor:pointer}
 .log-body{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;padding:14px 16px;max-height:280px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
 .log-body .ok{color:var(--success)}.log-body .err{color:var(--error)}.log-body .warn{color:var(--warn)}.log-body .info{color:var(--primary)}
 
+/* result card */
 .result-card{width:100%;max-width:680px;background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:20px 24px;display:none;margin-top:16px}
 .result-card.visible{display:block}
 .result-card h3{font-size:14px;font-weight:600;margin-bottom:14px;color:var(--text)}
@@ -101,43 +110,22 @@ input[type=range]{flex:1;accent-color:var(--primary);height:4px;cursor:pointer}
 .stat-unch{background:color-mix(in oklch,var(--warn) 15%,transparent);color:var(--warn)}
 .stat-total{background:var(--surf2);color:var(--muted)}
 
-/* ── Inspector panel ── */
-.inspector-panel{width:100%;max-width:680px;background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:20px 24px;display:none;margin-top:16px}
-.inspector-panel.visible{display:block}
-.inspector-panel h3{font-size:14px;font-weight:600;margin-bottom:16px;color:var(--text);display:flex;align-items:center;gap:8px}
-.insp-section{margin-bottom:18px}
-.insp-section:last-child{margin-bottom:0}
-.insp-section-title{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)}
-.insp-grid{display:grid;grid-template-columns:160px 1fr;gap:4px 12px}
-.insp-key{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;padding:4px 0;white-space:nowrap}
-.insp-val{font-size:12px;color:var(--text);font-family:'JetBrains Mono',monospace;padding:4px 0;word-break:break-all}
-.insp-val.highlight{color:var(--primary);font-weight:600}
-.insp-val.ok{color:var(--success);font-weight:600}
-.insp-val.warn{color:var(--warn);font-weight:600}
-.insp-val.err{color:var(--error);font-weight:600}
-.count-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
-.count-chip{display:inline-flex;flex-direction:column;align-items:center;padding:8px 18px;border-radius:10px;gap:2px}
-.count-chip-val{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;line-height:1}
-.count-chip-lbl{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.7}
-.chip-live{background:color-mix(in oklch,var(--success) 14%,var(--surf2));color:var(--success)}
-.chip-vod{background:color-mix(in oklch,var(--primary) 14%,var(--surf2));color:var(--primary)}
-.chip-series{background:color-mix(in oklch,var(--warn) 14%,var(--surf2));color:var(--warn)}
-.raw-toggle{font-size:11px;color:var(--primary);cursor:pointer;user-select:none;margin-top:8px;display:inline-block}
-.raw-toggle:hover{text-decoration:underline}
-.raw-block{display:none;margin-top:8px;background:var(--log);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:10.5px;line-height:1.6;max-height:220px;overflow-y:auto;white-space:pre;word-break:break-all;color:var(--muted)}
-.raw-block.visible{display:block}
-
+/* validate panel */
 .validate-panel{width:100%;max-width:680px;background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:20px 24px;display:none;margin-top:16px}
 .validate-panel.visible{display:block}
 .validate-panel h3{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text);display:flex;align-items:center;gap:8px}
+
 .validate-controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;padding:14px;background:var(--surf2);border-radius:10px;border:1px solid var(--border)}
 .vc-label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
 .vc-val{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--primary);font-weight:600}
+
 .vp-progress{height:8px;background:var(--surf2);border-radius:4px;overflow:hidden;margin-bottom:6px;display:none;position:relative}
 .vp-progress.visible{display:block}
 .vp-bar{height:100%;width:0;background:var(--primary);transition:width .4s cubic-bezier(.16,1,.3,1);border-radius:4px}
 .vp-progress-text{font-size:12px;color:var(--muted);margin-bottom:14px;font-family:'JetBrains Mono',monospace}
+
 .validate-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+
 .table-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
 .table-toolbar input{flex:1;min-width:150px;background:var(--entry);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 11px;font-size:13px;outline:none;transition:border-color .15s}
 .table-toolbar input:focus{border-color:var(--primary)}
@@ -147,6 +135,7 @@ input[type=range]{flex:1;accent-color:var(--primary);height:4px;cursor:pointer}
 .filter-btn.active-dead{border-color:var(--error);color:var(--error);background:color-mix(in oklch,var(--error) 12%,transparent)}
 .filter-btn.active-unch{border-color:var(--warn);color:var(--warn);background:color-mix(in oklch,var(--warn) 12%,transparent)}
 .filter-btn:not(.active-all):not(.active-live):not(.active-dead):not(.active-unch):hover{border-color:var(--muted);color:var(--text)}
+
 .vp-table-wrap{max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px;display:none}
 .vp-table-wrap.visible{display:block}
 table{width:100%;border-collapse:collapse;font-size:12px}
@@ -169,13 +158,47 @@ tr:hover td{background:var(--surf2)}
 .td-url-wrap{display:flex;align-items:center;gap:5px;min-width:0}
 .reason-text{font-size:10px;color:var(--faint);font-family:'JetBrains Mono',monospace;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+/* ── Inspector panel ─────────────────────────────────────────────────── */
+.inspector-panel{width:100%;max-width:680px;background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:20px 24px;display:none;margin-top:16px}
+.inspector-panel.visible{display:block}
+.inspector-panel h3{font-size:14px;font-weight:600;margin-bottom:16px;color:var(--text);display:flex;align-items:center;gap:8px}
+
+.insp-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.insp-box{background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:14px}
+.insp-box h4{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.insp-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)}
+.insp-row:last-child{border-bottom:none}
+.insp-key{font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0}
+.insp-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);text-align:right;word-break:break-all}
+.insp-val.ok{color:var(--success)}
+.insp-val.warn{color:var(--warn)}
+.insp-val.err{color:var(--error)}
+.insp-val.dim{color:var(--faint)}
+
+.count-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.count-box{background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
+.count-num{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;color:var(--primary);line-height:1.2}
+.count-label{font-size:11px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.06em}
+
+.raw-section{margin-top:4px}
+.raw-toggle{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 14px;font-size:12px;color:var(--muted);cursor:pointer;font-family:inherit;transition:all .15s;width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.raw-toggle:hover{border-color:var(--muted);color:var(--text)}
+.raw-toggle .arrow{transition:transform .2s}
+.raw-toggle.open .arrow{transform:rotate(180deg)}
+.raw-body{display:none;background:var(--entry);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.7;overflow-x:auto;white-space:pre;color:var(--text);margin-bottom:8px;max-height:260px;overflow-y:auto}
+.raw-body.visible{display:block}
+
+.insp-token{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--primary);background:var(--primary-dim);padding:3px 8px;border-radius:6px;display:inline-block;margin-bottom:14px}
+
+/* footer */
 .footer{margin-top:40px;font-size:12px;color:var(--faint);text-align:center}
 .footer a{color:var(--muted)}
 @media(max-width:480px){
   .btn-row{flex-direction:column}.btn{width:100%}.ml-auto{margin-left:0}
   .validate-controls{grid-template-columns:1fr}
   .table-toolbar{flex-direction:column;align-items:stretch}
-  .insp-grid{grid-template-columns:120px 1fr}
+  .insp-grid{grid-template-columns:1fr}
+  .count-row{grid-template-columns:repeat(3,1fr)}
 }
 </style>
 </head>
@@ -247,39 +270,52 @@ tr:hover td{background:var(--surf2)}
   <div class="log-body" id="logBody"></div>
 </div>
 
-<!-- Portal Inspector panel -->
+<!-- ── Inspector Panel ──────────────────────────────────────────────────── -->
 <div class="inspector-panel" id="inspectorPanel">
   <h3>🔎 Portal Inspector</h3>
 
-  <!-- Auth status -->
-  <div class="insp-section">
-    <div class="insp-section-title">Authentication</div>
-    <div class="insp-grid" id="inspAuth"></div>
-  </div>
-
-  <!-- Account -->
-  <div class="insp-section" id="inspAccountSection">
-    <div class="insp-section-title">Account / Subscription</div>
-    <div class="insp-grid" id="inspAccount"></div>
-  </div>
+  <!-- Token badge -->
+  <div id="inspToken" class="insp-token" style="display:none"></div>
 
   <!-- Content counts -->
-  <div class="insp-section" id="inspCountsSection">
-    <div class="insp-section-title">Content Counts</div>
-    <div class="count-chips" id="inspCounts"></div>
+  <div class="count-row" id="countRow">
+    <div class="count-box">
+      <div class="count-num" id="cntLive">—</div>
+      <div class="count-label">Live TV</div>
+    </div>
+    <div class="count-box">
+      <div class="count-num" id="cntVod">—</div>
+      <div class="count-label">VOD</div>
+    </div>
+    <div class="count-box">
+      <div class="count-num" id="cntSeries">—</div>
+      <div class="count-label">Series</div>
+    </div>
   </div>
 
-  <!-- Server -->
-  <div class="insp-section" id="inspServerSection" style="display:none">
-    <div class="insp-section-title">Server Info</div>
-    <div class="insp-grid" id="inspServer"></div>
+  <!-- Account + Subscription cards -->
+  <div class="insp-grid">
+    <div class="insp-box">
+      <h4>Account</h4>
+      <div id="infoAccount"></div>
+    </div>
+    <div class="insp-box">
+      <h4>Subscription</h4>
+      <div id="infoSubscription"></div>
+    </div>
   </div>
 
-  <!-- Raw JSON toggle -->
-  <div class="insp-section">
-    <div class="insp-section-title">Raw Portal Data</div>
-    <span class="raw-toggle" id="rawToggle">▶ Show raw JSON</span>
-    <div class="raw-block" id="rawBlock"></div>
+  <!-- Raw JSON blocks -->
+  <div class="raw-section">
+    <button class="raw-toggle" id="rawProfileToggle">
+      <span>Raw · get_profile</span><span class="arrow">▼</span>
+    </button>
+    <pre class="raw-body" id="rawProfileBody"></pre>
+
+    <button class="raw-toggle" id="rawAccountToggle">
+      <span id="rawAccountLabel">Raw · account_info</span><span class="arrow">▼</span>
+    </button>
+    <pre class="raw-body" id="rawAccountBody"></pre>
   </div>
 </div>
 
@@ -349,6 +385,7 @@ tr:hover td{background:var(--surf2)}
 </footer>
 
 <script>
+// ── Theme ─────────────────────────────────────────────────────────────────────
 const html = document.documentElement;
 const themeBtn = document.getElementById('themeBtn');
 let dark = true;
@@ -358,6 +395,7 @@ themeBtn.addEventListener('click', () => {
   themeBtn.textContent = dark ? '\u2600\ufe0f Light' : '\uD83C\uDF19 Dark';
 });
 
+// ── MAC auto-format ───────────────────────────────────────────────────────────
 const macInput = document.getElementById('mac');
 macInput.addEventListener('input', () => {
   let raw = macInput.value.replace(/[^0-9A-Fa-f]/g,'');
@@ -370,10 +408,12 @@ macInput.addEventListener('input', () => {
   macInput.setSelectionRange(Math.min(pos,formatted.length),Math.min(pos,formatted.length));
 });
 
+// ── Pages slider ──────────────────────────────────────────────────────────────
 const pagesInput = document.getElementById('pages');
 const pagesValEl = document.getElementById('pagesVal');
 pagesInput.addEventListener('input', () => pagesValEl.textContent = pagesInput.value);
 
+// ── Validate sliders ──────────────────────────────────────────────────────────
 const timeoutRange = document.getElementById('timeoutRange');
 const workersRange = document.getElementById('workersRange');
 const timeoutValEl = document.getElementById('timeoutVal');
@@ -381,12 +421,14 @@ const workersValEl = document.getElementById('workersVal');
 timeoutRange.addEventListener('input', () => timeoutValEl.textContent = timeoutRange.value);
 workersRange.addEventListener('input', () => workersValEl.textContent = workersRange.value);
 
+// ── Re-check toggle ───────────────────────────────────────────────────────────
 const recheckChk  = document.getElementById('recheckChk');
 const recheckArea = document.getElementById('recheckArea');
 recheckChk.addEventListener('change', () => {
   recheckArea.style.display = recheckChk.checked ? 'block' : 'none';
 });
 
+// ── State ─────────────────────────────────────────────────────────────────────
 let abortCtrl     = null;
 let validateAbort = null;
 let m3uData       = null;
@@ -399,6 +441,7 @@ let sortDir       = 'asc';
 
 const $ = id => document.getElementById(id);
 
+// ── Log ───────────────────────────────────────────────────────────────────────
 function showLog(){ $('logCard').classList.add('visible'); }
 function clearLog(){ $('logBody').innerHTML=''; }
 $('logClear').addEventListener('click', clearLog);
@@ -412,32 +455,31 @@ function log(msg, cls=''){
   lb.scrollTop=lb.scrollHeight;
 }
 
+// ── Status ────────────────────────────────────────────────────────────────────
 function setStatus(msg, cls=''){
   const el=$('status');
   el.textContent=msg;
   el.className='status'+(cls?' '+cls:'');
 }
 
+// ── Progress helpers ──────────────────────────────────────────────────────────
 function setBusy(busy){
-  const pw=$('progressWrap');
-  if(busy) pw.classList.add('visible');
-  else     pw.classList.remove('visible');
+  $('progressWrap').classList.toggle('visible', busy);
   $('convertBtn').disabled=busy;
   $('testBtn').disabled=busy;
   $('cancelBtn').disabled=!busy;
 }
-
 function setProgress(pct){
   const pb=$('progressBar');
   if(pct==null){
-    pb.style.width='40%';
-    pb.classList.add('indeterminate');
+    pb.style.width='40%'; pb.classList.add('indeterminate');
   }else{
     pb.classList.remove('indeterminate');
     pb.style.width=Math.max(3,Math.min(100,pct))+'%';
   }
 }
 
+// ── Inputs ────────────────────────────────────────────────────────────────────
 function getInputs(){
   const portal=$('portal').value.trim().replace(/\/+$/,'');
   const mac=$('mac').value.trim();
@@ -456,6 +498,7 @@ function validateInputs(){
   return true;
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function badge(cls, text){ return `<span class="stat-badge ${cls}">${text}</span>`; }
 function pill(cls, text){  return `<span class="pill ${cls}">${text}</span>`; }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -480,82 +523,77 @@ function buildM3uFromChannels(channels, epgUrl=''){
 
 // ── Inspector helpers ─────────────────────────────────────────────────────────
 function inspRow(key, val, cls=''){
-  return `<div class="insp-key">${esc(key)}</div><div class="insp-val${cls?' '+cls:''}">${esc(String(val))}</div>`;
+  if(val==null||val===''||val==='null') return '';
+  return `<div class="insp-row"><span class="insp-key">${esc(key)}</span><span class="insp-val ${cls}">${esc(val)}</span></div>`;
 }
 
 function renderInspector(data){
   const panel = $('inspectorPanel');
   panel.classList.add('visible');
 
-  // Auth
-  $('inspAuth').innerHTML = inspRow('portal', data.portal, 'highlight')
-    + inspRow('token', data.auth?.token ? 'obtained ✓' : 'failed ✗', data.auth?.token ? 'ok' : 'err');
-
-  // Account
-  const acc = data.account || {};
-  const accKeys = [
-    ['login','Login / Username'], ['name','Full Name'],
-    ['status','Account Status'], ['tariff','Tariff / Package'],
-    ['start_date','Subscription Start'], ['end_date','Subscription End'],
-    ['balance','Balance'], ['max_connections','Max Connections'],
-    ['phone','Phone'], ['email','Email'],
-    ['blocked','Blocked'], ['isp','ISP / Provider'],
-    ['country','Country'], ['timezone','Timezone'],
-    ['serial_number','Serial Number'], ['stb_type','STB Type'],
-    ['created','Created'], ['last_modified','Last Modified'],
-    ['comment','Comment / Note'],
-  ];
-  let accHtml = '';
-  let hasAcc = false;
-  accKeys.forEach(([k, label]) => {
-    if(acc[k] != null){
-      hasAcc = true;
-      let cls = '';
-      if(k==='status') cls = /activ|ok|active/i.test(acc[k]) ? 'ok' : 'warn';
-      if(k==='blocked') cls = /1|true|yes/i.test(acc[k]) ? 'err' : 'ok';
-      if(k==='end_date') {
-        // highlight expiry: red if past, warn if within 7 days
-        try {
-          const d = new Date(acc[k]);
-          const now = new Date();
-          const diff = (d - now) / 86400000;
-          cls = diff < 0 ? 'err' : diff < 7 ? 'warn' : 'ok';
-        } catch(_){}
-      }
-      accHtml += inspRow(label, acc[k], cls);
-    }
-  });
-  if(!hasAcc) accHtml = '<div class="insp-val" style="grid-column:1/-1;color:var(--faint)">No account data returned by this portal</div>';
-  $('inspAccount').innerHTML = accHtml;
+  // Token
+  if(data.token){
+    $('inspToken').textContent = '🔑 Token: ' + data.token;
+    $('inspToken').style.display = 'inline-block';
+  }
 
   // Counts
-  const counts = data.counts || {};
-  let chipsHtml = '';
-  if(counts.live   != null) chipsHtml += `<div class="count-chip chip-live"><div class="count-chip-val">${counts.live.toLocaleString()}</div><div class="count-chip-lbl">Live TV</div></div>`;
-  if(counts.vod    != null) chipsHtml += `<div class="count-chip chip-vod"><div class="count-chip-val">${counts.vod.toLocaleString()}</div><div class="count-chip-lbl">VOD</div></div>`;
-  if(counts.series != null) chipsHtml += `<div class="count-chip chip-series"><div class="count-chip-val">${counts.series.toLocaleString()}</div><div class="count-chip-lbl">Series</div></div>`;
-  if(!chipsHtml) chipsHtml = '<div style="font-size:12px;color:var(--faint)">Could not read content counts</div>';
-  $('inspCounts').innerHTML = chipsHtml;
+  $('cntLive').textContent   = data.counts?.live   ?? '—';
+  $('cntVod').textContent    = data.counts?.vod    ?? '—';
+  $('cntSeries').textContent = data.counts?.series ?? '—';
 
-  // Server
-  const srv = data.server || {};
-  const srvKeys = [['time','Server Time'],['timezone','Server Timezone'],['version','Portal Version'],['portal','Portal URL']];
-  let srvHtml = '';
-  srvKeys.forEach(([k,label]) => { if(srv[k]) srvHtml += inspRow(label, srv[k]); });
-  if(srvHtml){ $('inspServer').innerHTML = srvHtml; $('inspServerSection').style.display=''; }
-  else        { $('inspServerSection').style.display='none'; }
+  // Info
+  const info = data.info || {};
+
+  const statusCls = (v) => {
+    if(!v) return '';
+    const l = v.toLowerCase();
+    if(l.includes('active')||l.includes('ok')||l.includes('enabled')) return 'ok';
+    if(l.includes('expired')||l.includes('disabled')||l.includes('block')) return 'err';
+    return 'warn';
+  };
+
+  $('infoAccount').innerHTML = [
+    inspRow('Name',    info.name),
+    inspRow('Login',   info.login),
+    inspRow('Password',info.password),
+    inspRow('Email',   info.email),
+    inspRow('Phone',   info.phone),
+    inspRow('IP',      info.ip),
+    inspRow('MAC',     info.mac),
+    inspRow('Status',  info.status, statusCls(info.status)),
+  ].join('') || '<span style="font-size:11px;color:var(--faint)">No account fields returned</span>';
+
+  $('infoSubscription').innerHTML = [
+    inspRow('Tariff',      info.tariff),
+    inspRow('Start date',  info.start_date),
+    inspRow('End date',    info.end_date),
+    inspRow('Server time', info.server_time),
+    inspRow('Services',    info.services),
+    inspRow('Keep-alive',  info.keep_alive),
+  ].join('') || '<span style="font-size:11px;color:var(--faint)">No subscription fields returned</span>';
 
   // Raw JSON
-  $('rawBlock').textContent = JSON.stringify(data.raw, null, 2);
+  $('rawProfileBody').textContent  = JSON.stringify(data.profile  || {}, null, 2);
+  $('rawAccountBody').textContent  = JSON.stringify(data.account  || {}, null, 2);
+  if(data.account_endpoint){
+    $('rawAccountLabel').textContent = `Raw · ${data.account_endpoint}`;
+  }
+
+  panel.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
-$('rawToggle').addEventListener('click', () => {
-  const rb = $('rawBlock');
-  const isOpen = rb.classList.toggle('visible');
-  $('rawToggle').textContent = isOpen ? '▼ Hide raw JSON' : '▶ Show raw JSON';
+// Raw toggles
+['rawProfileToggle','rawAccountToggle'].forEach(id => {
+  $(id).addEventListener('click', () => {
+    const btn  = $(id);
+    const body = $(id.replace('Toggle','Body'));
+    const open = btn.classList.toggle('open');
+    body.classList.toggle('visible', open);
+  });
 });
 
-// ── Convert ───────────────────────────────────────────────────────────────────
+// ── Convert (NDJSON streaming) ────────────────────────────────────────────────
 $('convertBtn').addEventListener('click', async () => {
   if(!validateInputs()) return;
   const{portal,mac,epg,types,maxPages,skipKnown}=getInputs();
@@ -651,16 +689,13 @@ $('convertBtn').addEventListener('click', async () => {
 
     m3uData = buildM3uFromChannels(lastChannels, epg);
     setProgress(100);
-
     const finalCount = lastChannels.length;
     const errCount   = doneEvt && doneEvt.errors ? doneEvt.errors.length : 0;
     log(`\u2713 Done \u2014 ${finalCount} channels`+(errCount?`, ${errCount} warning${errCount!==1?'s':''}`:'')+'.','ok');
     setStatus(`\u2713 ${finalCount} channels ready \u2014 click Save .m3u`,'ok');
-
     $('saveBtn').disabled=false;
     $('copyBtn').disabled=false;
     $('validateBtn').disabled=false;
-
     $('resultStats').innerHTML=[
       badge('stat-total',`${finalCount} channels`),
       badge('stat-total',`${(new Blob([m3uData]).size/1024).toFixed(1)} KB`),
@@ -692,11 +727,10 @@ $('cancelBtn').addEventListener('click',()=>{
 
 // ── Inspect Portal ────────────────────────────────────────────────────────────
 $('testBtn').addEventListener('click', async () => {
-  const portal = $('portal').value.trim().replace(/\/+$/, '');
+  const portal = $('portal').value.trim().replace(/\/+$/,'');
   const mac    = $('mac').value.trim();
-
   if(!portal){ setStatus('\u26a0 Enter a portal URL first.','err'); return; }
-  if(!mac)   { setStatus('\u26a0 Enter a MAC address first.','err'); return; }
+  if(!mac){    setStatus('\u26a0 Enter a MAC address first.','err'); return; }
   if(!/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(mac)){
     setStatus('\u26a0 Invalid MAC format.','err'); return;
   }
@@ -707,57 +741,51 @@ $('testBtn').addEventListener('click', async () => {
   setProgress(null);
   $('progressWrap').classList.add('visible');
   setStatus('Inspecting portal\u2026');
-
-  log(`Portal : ${portal}`, 'info');
-  log(`MAC    : ${mac}`, 'info');
-  log('Running: handshake \u2192 profile \u2192 account \u2192 counts\u2026', 'info');
+  log(`Portal: ${portal}`,'info');
+  log(`MAC:    ${mac}`,'info');
+  log('Authenticating\u2026','info');
 
   try{
-    const res = await fetch('/api/test', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ portal, mac }),
+    const res = await fetch('/api/test',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({portal, mac}),
     });
     const data = await res.json();
 
     if(!data.ok){
-      log(`\u2717 ${data.error}`, 'err');
-      setStatus(`\u2717 ${data.error}`, 'err');
+      log(`\u2717 ${data.error}`,'err');
+      setStatus(`\u2717 ${data.error}`,'err');
       return;
     }
 
-    log('\u2713 Handshake OK — token obtained', 'ok');
+    log('\u2713 Handshake OK','ok');
+    if(data.token)  log(`Token  : ${data.token}`,'info');
 
-    const acc = data.account || {};
-    if(acc.login)      log(`Login      : ${acc.login}`, 'info');
-    if(acc.name)       log(`Name       : ${acc.name}`, 'info');
-    if(acc.status)     log(`Status     : ${acc.status}`, 'ok');
-    if(acc.tariff)     log(`Tariff     : ${acc.tariff}`, 'info');
-    if(acc.start_date) log(`Start      : ${acc.start_date}`, 'info');
-    if(acc.end_date)   log(`Expiry     : ${acc.end_date}`, 'info');
-    if(acc.balance)    log(`Balance    : ${acc.balance}`, 'info');
+    const info = data.info || {};
+    if(info.name)       log(`Name   : ${info.name}`,'ok');
+    if(info.login)      log(`Login  : ${info.login}`,'ok');
+    if(info.status)     log(`Status : ${info.status}`,'ok');
+    if(info.tariff)     log(`Tariff : ${info.tariff}`,'ok');
+    if(info.start_date) log(`Start  : ${info.start_date}`,'info');
+    if(info.end_date)   log(`Expiry : ${info.end_date}`,'info');
 
     const c = data.counts || {};
-    const parts = [];
-    if(c.live   != null) parts.push(`Live ${c.live.toLocaleString()}`);
-    if(c.vod    != null) parts.push(`VOD ${c.vod.toLocaleString()}`);
-    if(c.series != null) parts.push(`Series ${c.series.toLocaleString()}`);
-    if(parts.length) log(`Counts     : ${parts.join(' · ')}`, 'ok');
+    log(`Live TV: ${c.live ?? '?'}  ·  VOD: ${c.vod ?? '?'}  ·  Series: ${c.series ?? '?'}`,'ok');
 
-    setStatus('\u2713 Portal inspected successfully', 'ok');
+    setStatus('\u2713 Portal inspection complete','ok');
     renderInspector(data);
-    $('inspectorPanel').scrollIntoView({behavior:'smooth', block:'start'});
 
   }catch(e){
-    log(`\u2717 ${e.message}`, 'err');
-    setStatus(`\u2717 ${e.message}`, 'err');
+    log(`\u2717 ${e.message}`,'err');
+    setStatus(`\u2717 ${e.message}`,'err');
   }finally{
     setBusy(false);
     $('progressWrap').classList.remove('visible');
   }
 });
 
-// ── Validate panel ────────────────────────────────────────────────────────────
+// ── Open validate panel ───────────────────────────────────────────────────────
 $('validateBtn').addEventListener('click',()=>{
   $('validatePanel').classList.add('visible');
   $('validatePanel').scrollIntoView({behavior:'smooth',block:'start'});
@@ -773,9 +801,8 @@ $('validateBtn').addEventListener('click',()=>{
   filteredM3u=null;
 });
 
-let _vpAnimFrame=null;
-let _vpTarget=0;
-let _vpCurrent=0;
+// ── Validate progress animation ───────────────────────────────────────────────
+let _vpAnimFrame=null,_vpTarget=0,_vpCurrent=0;
 function animateVpBar(pct){
   _vpTarget=pct;
   if(_vpAnimFrame) return;
@@ -795,6 +822,7 @@ function animateVpBar(pct){
   _vpAnimFrame=requestAnimationFrame(step);
 }
 
+// ── Run Validation ────────────────────────────────────────────────────────────
 $('runValidateBtn').addEventListener('click', async ()=>{
   if(!m3uData){setStatus('\u26a0 Convert first to get an M3U.','err');return;}
   const timeout=parseInt(timeoutRange.value)||5;
@@ -809,12 +837,10 @@ $('runValidateBtn').addEventListener('click', async ()=>{
   $('saveFilteredBtn').disabled=true;
   $('copyFilteredBtn').disabled=true;
   filteredM3u=null;
-
   _vpCurrent=0; _vpTarget=0;
   $('vpProgress').classList.add('visible');
   animateVpBar(0);
   $('vpProgressText').textContent=`Preparing ${total} channels\u2026`;
-
   $('runValidateBtn').disabled=true;
   $('cancelValidateBtn').disabled=false;
 
@@ -826,8 +852,7 @@ $('runValidateBtn').addEventListener('click', async ()=>{
     tick++;
     const pct = Math.min(90, (tick/ticksTotal)*90);
     animateVpBar(pct);
-    const doneSoFar = Math.round((pct/100)*total);
-    $('vpProgressText').textContent=`Checking\u2026 ~${doneSoFar} / ${total} (${Math.round(pct)}%)`;
+    $('vpProgressText').textContent=`Checking\u2026 ~${Math.round((pct/100)*total)} / ${total} (${Math.round(pct)}%)`;
   }, tickInterval);
 
   validateAbort = new AbortController();
@@ -847,10 +872,8 @@ $('runValidateBtn').addEventListener('click', async ()=>{
     const data = await res.json();
     animateVpBar(100);
     $('vpProgressText').textContent=`Done \u2014 ${data.total} channels checked`;
-
     allResults = data.results || [];
     filteredM3u = data.filtered_m3u || null;
-
     const {live=0,dead=0,uncheckable=0,total:tot=0} = data;
     $('validateStats').innerHTML=[
       badge('stat-total',`${tot} total`),
@@ -858,7 +881,6 @@ $('runValidateBtn').addEventListener('click', async ()=>{
       badge('stat-dead',`\u2717 ${dead} dead`),
       badge('stat-unch',`\u26a0 ${uncheckable} auth`),
     ].join('');
-
     activeFilter='all'; sortCol=null; sortDir='asc';
     document.querySelectorAll('.filter-btn').forEach(b=>b.className='filter-btn');
     $('fbAll').classList.add('active-all');
@@ -866,7 +888,6 @@ $('runValidateBtn').addEventListener('click', async ()=>{
       th.classList.remove('sort-asc','sort-desc');
       th.querySelector('.sort-icon').textContent='\u21c5';
     });
-
     renderTable();
     $('vpTableWrap').classList.add('visible');
     $('tableToolbar').style.display='flex';
@@ -887,10 +908,9 @@ $('runValidateBtn').addEventListener('click', async ()=>{
   }
 });
 
-$('cancelValidateBtn').addEventListener('click',()=>{
-  if(validateAbort){validateAbort.abort();}
-});
+$('cancelValidateBtn').addEventListener('click',()=>{ if(validateAbort) validateAbort.abort(); });
 
+// ── Table render ──────────────────────────────────────────────────────────────
 function getFilteredSorted(){
   const q = ($('tableSearch').value||'').toLowerCase();
   let rows = allResults.filter(r=>{
@@ -925,12 +945,8 @@ function renderTable(){
       <td style="color:var(--muted);font-size:11px">${esc(r.group||'')}</td>
       <td>${typePill}</td>
       <td>${statusPill}${reason}</td>
-      <td>
-        <div class="td-url-wrap">
-          <span class="td-url" title="${esc(r.url)}">${esc(r.url)}</span>
-          <button class="copy-url-btn" data-url="${esc(r.url)}" aria-label="Copy URL">copy</button>
-        </div>
-      </td>`;
+      <td><div class="td-url-wrap"><span class="td-url" title="${esc(r.url)}">${esc(r.url)}</span>
+      <button class="copy-url-btn" data-url="${esc(r.url)}" aria-label="Copy URL">copy</button></div></td>`;
     tb.appendChild(tr);
   });
 }
@@ -938,10 +954,8 @@ function renderTable(){
 $('vpTableBody').addEventListener('click', e=>{
   const btn=e.target.closest('.copy-url-btn');
   if(!btn) return;
-  const url=btn.dataset.url;
-  copyText(url).then(()=>{
-    btn.textContent='copied!';
-    btn.classList.add('copied');
+  copyText(btn.dataset.url).then(()=>{
+    btn.textContent='copied!'; btn.classList.add('copied');
     setTimeout(()=>{btn.textContent='copy';btn.classList.remove('copied');},1500);
   });
 });
@@ -977,8 +991,7 @@ document.querySelectorAll('th[data-col]').forEach(th=>{
 function downloadM3u(text, filename){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([text],{type:'application/x-mpegurl'}));
-  a.download=filename;
-  a.click();
+  a.download=filename; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 }
 $('saveBtn').addEventListener('click',()=>{ if(m3uData) downloadM3u(m3uData,'playlist.m3u'); });

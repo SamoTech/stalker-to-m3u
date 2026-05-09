@@ -1,23 +1,28 @@
 """
-api/test.py  —  Real portal inspector.
+api/test.py  —  Portal Inspector.
 
 POST /api/test
   Body (JSON):
-    portal  : str  required  http://HOST:PORT
-    mac     : str  required  00:1A:79:XX:XX:XX
+    portal : str  required  http://HOST:PORT
+    mac    : str  required  00:1A:79:XX:XX:XX
 
 Response (JSON):
   {
     ok        : bool,
     portal    : str,
-    auth      : { token: bool },
-    account   : { login, name, status, tariff, start_date, end_date,
-                  phone, email, created, last_change, balance,
-                  max_connections, ...all readable fields },
-    counts    : { live: int, vod: int, series: int },
-    server    : { time, timezone, version, ...all readable fields },
-    raw       : { profile: {...}, account: {...}, server: {...} },
-    error     : str   (only on failure)
+    mac       : str,
+    token     : str | null,
+    profile   : dict,        # raw get_profile js block
+    account   : dict,        # raw get_account_info js block (if available)
+    info      : {
+      name, login, status, tariff,
+      start_date, end_date,
+      phone, email,
+      server_time, mac, ip,
+      keep_alive_use, stb_active_services
+    },
+    counts    : { live, vod, series },
+    error     : str | null
   }
 """
 
@@ -26,10 +31,10 @@ import json, hashlib, re, time
 import urllib.request, urllib.parse, urllib.error
 from urllib.parse import urlencode
 
-config = {"maxDuration": 25}
+config = {"maxDuration": 30}
 
 
-# ── Stalker auth helpers (mirrors convert.py) ─────────────────────────────────
+# ── Shared portal helpers (mirrors convert.py) ─────────────────────────────────
 
 def mac_to_serial(mac):
     return hashlib.md5(mac.replace(":", "").upper().encode()).hexdigest()[:13].upper()
@@ -61,14 +66,14 @@ def http_get(url, headers, timeout=12):
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8", errors="replace"))
 
-def do_handshake(base, mac):
+def handshake(base, mac):
     data  = http_get(portal_url(base, "handshake", type="stb", prehash=0), build_headers(mac))
     token = data.get("js", {}).get("token") or data.get("token")
     if not token:
-        raise RuntimeError("No token returned by handshake")
+        raise RuntimeError("No token in handshake response")
     return token
 
-def do_profile(base, mac, token):
+def get_profile(base, mac, token):
     url = portal_url(base, "get_profile",
         hd=1, ver="ImageDescription: 0.2.18-r14-pub-250;",
         num_banks=2, sn=mac_to_serial(mac), stb_type="MAG200",
@@ -77,97 +82,96 @@ def do_profile(base, mac, token):
         signature=mac_to_signature(mac), auth_second_step=1,
         hw_version="1.7-BD-00", not_valid_token=0,
         client_type="STB", hw_version_2=mac_to_serial(mac))
-    return http_get(url, build_headers(mac, token)).get("js", {})
+    return http_get(url, build_headers(mac, token))
 
-def do_account_info(base, mac, token):
-    """Try the dedicated account_info endpoint (not available on all portals)."""
-    try:
-        data = http_get(portal_url(base, "get_account_info"), build_headers(mac, token))
-        return data.get("js") or {}
-    except Exception:
-        return {}
-
-def do_server_info(base, mac, token):
-    """Try get_server_info / get_settings for server/portal metadata."""
-    result = {}
-    for action in ("get_server_info", "get_settings"):
+def get_account_info(base, mac, token):
+    """Try several known account info endpoints — return first that works."""
+    actions = ["get_account_info", "account_info", "get_user", "get_subscriber_info"]
+    for action in actions:
         try:
             data = http_get(portal_url(base, action), build_headers(mac, token))
-            js   = data.get("js") or {}
-            if isinstance(js, dict):
-                result.update(js)
+            js   = data.get("js")
+            if js and isinstance(js, dict) and js:
+                return js, action
         except Exception:
-            pass
-    return result
+            continue
+    return {}, None
 
-def count_type(base, mac, token, media_type, timeout=10):
-    """Return total channel/VOD count for the given media type.
-    Uses page 1 total_items field from get_ordered_list.
-    """
+def count_content(base, mac, token, media_type):
+    """Return total item count for a media type using total_items from first page."""
+    t_map = {"live": "itv", "vod": "vod", "series": "series"}
+    t = t_map.get(media_type, "itv")
+    try:
+        url  = portal_url(base, "get_ordered_list",
+                          type=t, genre="*", p=1, fav=0, sortby="number",
+                          JsHttpRequest=f"{int(time.time()*1000)}-xml")
+        data = http_get(url, build_headers(mac, token))
+        js   = data.get("js", {})
+        if isinstance(js, dict):
+            total = int(js.get("total_items") or js.get("total") or 0)
+            if total:
+                return total
+            # fallback: count items on page 1
+            items = js.get("data") or []
+        elif isinstance(js, list):
+            items = js
+            total = 0
+        else:
+            return 0
+        # if total_items not present, sum page items as a lower-bound
+        return len(items) if items else 0
+    except Exception:
+        return 0
+
+def count_categories(base, mac, token, media_type):
+    """Return category count as a secondary indicator if content count is 0."""
+    action = "get_genres" if media_type == "live" else "get_categories"
     t = {"live": "itv", "vod": "vod", "series": "series"}.get(media_type, "itv")
     try:
-        url = portal_url(base, "get_ordered_list",
-            type=t, genre="*", force_ch_link_check=0, fav=0,
-            sortby="number", hd=0, p=1,
-            JsHttpRequest=f"{int(time.time() * 1000)}-xml")
-        data = http_get(url, build_headers(mac, token), timeout=timeout)
-        js   = data.get("js") or {}
+        data = http_get(portal_url(base, action, type=t), build_headers(mac, token))
+        js   = data.get("js") or []
         if isinstance(js, dict):
-            total = js.get("total_items") or js.get("total") or 0
-            return int(total)
-        if isinstance(js, list):
-            return len(js)
+            js = list(js.values())
+        return len([g for g in js if g.get("id")])
     except Exception:
-        pass
-    return None
+        return 0
 
-def safe_str(v):
-    if v is None:
-        return None
-    return str(v).strip() or None
 
-def extract_account(profile, account_raw):
-    """Merge profile + account_info into a clean normalized dict."""
-    src = {}
-    if isinstance(profile, dict):
-        src.update(profile)
-    if isinstance(account_raw, dict):
-        src.update(account_raw)
+def extract_info(profile_js, account_js):
+    """Merge profile + account blobs into a flat readable dict."""
+    p = profile_js or {}
+    a = account_js or {}
 
-    def pick(*keys):
-        for k in keys:
-            v = src.get(k)
-            if v not in (None, "", 0, "0", "null", "undefined"):
-                return str(v).strip()
+    def pick(*keys, sources=None):
+        for src in (sources or [p, a]):
+            for k in keys:
+                v = src.get(k)
+                if v not in (None, "", 0, "0"):
+                    return str(v).strip()
         return None
 
     return {
-        k: v for k, v in {
-            "login":           pick("login", "username", "user_login"),
-            "name":            pick("fname", "full_name", "name", "real_name"),
-            "status":          pick("status", "account_status", "subscriber_status"),
-            "tariff":          pick("tariff_plan", "tariff", "package", "plan"),
-            "start_date":      pick("start_date", "activation_date", "created_at", "reg_date"),
-            "end_date":        pick("end_date", "expire_date", "expiry", "expiry_date", "exp_date"),
-            "phone":           pick("phone", "mobile", "phone_number"),
-            "email":           pick("email", "mail"),
-            "balance":         pick("balance", "credit"),
-            "max_connections": pick("max_connections", "simultaneous_sessions"),
-            "blocked":         pick("blocked", "is_blocked"),
-            "comment":         pick("comment", "note", "notes"),
-            "created":         pick("created", "created_at", "reg_date"),
-            "last_modified":   pick("last_modified", "last_change", "updated_at"),
-            "timezone":        pick("timezone", "time_zone"),
-            "locale":          pick("locale", "language", "lang"),
-            "stb_type":        pick("stb_type", "device_type"),
-            "serial_number":   pick("sn", "serial", "serial_number"),
-            "isp":             pick("isp", "provider"),
-            "country":         pick("country", "country_code"),
-        }.items() if v is not None
+        "name":         pick("name", "fname", "full_name", "subscriber_name"),
+        "login":        pick("login", "username", "user", "stb_login"),
+        "password":     pick("password", "pass", "stb_password"),   # rarely present
+        "status":       pick("status", "account_status", "stb_status"),
+        "tariff":       pick("tariff_plan", "tariff", "plan", "package",
+                             "service_name", "subscription"),
+        "start_date":   pick("start_date", "created", "created_at",
+                             "activation_date", "reg_date"),
+        "end_date":     pick("end_date", "expire_date", "expiry",
+                             "subscription_end", "valid_till", "expire"),
+        "phone":        pick("phone", "mobile", "telephone"),
+        "email":        pick("email", "mail"),
+        "ip":           pick("ip", "last_ip", "remote_ip"),
+        "mac":          pick("mac", "stb_mac"),
+        "server_time":  pick("servertime", "server_time", "time"),
+        "keep_alive":   pick("keep_alive_use", "keepalive"),
+        "services":     pick("stb_active_services", "active_services", "services"),
     }
 
 
-# ── Handler ────────────────────────────────────────────────────────────────────
+# ── Vercel handler ─────────────────────────────────────────────────────────────
 
 class handler(BaseHTTPRequestHandler):
 
@@ -175,7 +179,7 @@ class handler(BaseHTTPRequestHandler):
 
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def send_json(self, status, data):
@@ -191,13 +195,6 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self._cors()
         self.end_headers()
-
-    def do_GET(self):
-        self.send_json(200, {
-            "status": "ok",
-            "endpoint": "POST /api/test",
-            "body": {"portal": "http://HOST:PORT", "mac": "00:1A:79:XX:XX:XX"},
-        })
 
     def do_POST(self):
         try:
@@ -216,65 +213,52 @@ class handler(BaseHTTPRequestHandler):
         if not re.match(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', mac):
             return self.send_json(400, {"ok": False, "error": f"Invalid MAC format: {mac}"})
 
-        # ── Step 1: Handshake ─────────────────────────────────────────────────
-        try:
-            token = do_handshake(portal, mac)
-        except Exception as e:
-            return self.send_json(502, {
-                "ok": False,
-                "portal": portal,
-                "error": f"Handshake failed: {e}",
-                "step": "handshake",
-            })
+        result = {
+            "ok":      False,
+            "portal":  portal,
+            "mac":     mac,
+            "token":   None,
+            "profile": {},
+            "account": {},
+            "account_endpoint": None,
+            "info":    {},
+            "counts":  {"live": 0, "vod": 0, "series": 0},
+            "error":   None,
+        }
 
-        # ── Step 2: Profile ───────────────────────────────────────────────────
-        profile_raw = {}
+        # 1. Handshake
         try:
-            profile_raw = do_profile(portal, mac, token)
+            token = handshake(portal, mac)
+            result["token"] = token[:12] + "…"  # partial — never expose full token
+            result["ok"]    = True
         except Exception as e:
-            profile_raw = {"_error": str(e)}
+            result["error"] = f"Handshake failed: {e}"
+            return self.send_json(502, result)
 
-        # ── Step 3: Account info (best-effort) ────────────────────────────────
-        account_raw = {}
+        # 2. Profile
         try:
-            account_raw = do_account_info(portal, mac, token)
+            raw_profile    = get_profile(portal, mac, token)
+            result["profile"] = raw_profile.get("js", raw_profile)
+        except Exception as e:
+            result["profile"] = {}
+            result["error"]   = f"get_profile failed: {e}"
+
+        # 3. Account info
+        try:
+            acct, endpoint = get_account_info(portal, mac, token)
+            result["account"]          = acct
+            result["account_endpoint"] = endpoint
         except Exception:
             pass
 
-        # ── Step 4: Server / settings info (best-effort) ─────────────────────
-        server_raw = {}
-        try:
-            server_raw = do_server_info(portal, mac, token)
-        except Exception:
-            pass
+        # 4. Merge into flat readable info
+        result["info"] = extract_info(result["profile"], result["account"])
 
-        # ── Step 5: Content counts (parallel best-effort) ────────────────────
-        counts = {}
+        # 5. Content counts (live, vod, series)
         for mt in ("live", "vod", "series"):
-            n = count_type(portal, mac, token, mt)
-            if n is not None:
-                counts[mt] = n
+            n = count_content(portal, mac, token, mt)
+            if n == 0:
+                n = count_categories(portal, mac, token, mt)  # fallback: category count
+            result["counts"][mt] = n
 
-        # ── Normalize ─────────────────────────────────────────────────────────
-        account = extract_account(profile_raw, account_raw)
-
-        server = {k: v for k, v in {
-            "time":     safe_str(server_raw.get("servertime") or server_raw.get("server_time") or server_raw.get("time")),
-            "timezone": safe_str(server_raw.get("timezone") or server_raw.get("server_timezone")),
-            "version":  safe_str(server_raw.get("version") or server_raw.get("portal_version")),
-            "portal":   safe_str(server_raw.get("portal") or server_raw.get("portal_url")),
-        }.items() if v is not None}
-
-        return self.send_json(200, {
-            "ok":     True,
-            "portal": portal,
-            "auth":   {"token": bool(token)},
-            "account": account,
-            "counts":  counts,
-            "server":  server,
-            "raw": {
-                "profile": profile_raw,
-                "account": account_raw,
-                "server":  server_raw,
-            },
-        })
+        return self.send_json(200, result)
