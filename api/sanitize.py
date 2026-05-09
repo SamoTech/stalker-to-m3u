@@ -1,20 +1,13 @@
 """
-api/sanitize.py  —  Shared URL utilities imported by convert.py and validate.py.
+api/sanitize.py — shared URL utilities used by convert.py and validate.py.
 
-Exports:
-    STREAM_TYPE_MAP          dict
-    UNCHECKABLE_KEYWORDS     list
-    UNCHECKABLE_URL_LENGTH_THRESHOLD  int
-    sanitize_url(url)        -> str
-    classify_stream_type(url)-> str
-    is_uncheckable(url)      -> tuple[bool, str]
+All functions are pure (no I/O) and importable via:
+    from sanitize import sanitize_url, classify_stream_type, is_uncheckable
 """
 
-# ── Constants ─────────────────────────────────────────────────────────────────
+import re
 
-UNCHECKABLE_URL_LENGTH_THRESHOLD = 250
-
-UNCHECKABLE_KEYWORDS = ['token', 'auth', 'login', 'key', 'signature', 'drm']
+# ── Stream-type classification ────────────────────────────────────────────────
 
 STREAM_TYPE_MAP = {
     '.m3u8': 'video', '.m3u': 'video', '.ts': 'video', '.mp4': 'video',
@@ -23,16 +16,20 @@ STREAM_TYPE_MAP = {
     '/stream': 'audio', '/radio/': 'audio',
 }
 
+UNCHECKABLE_KEYWORDS = ['token', 'auth', 'login', 'key', 'signature', 'drm']
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def classify_stream_type(url: str) -> str:
+    """Return 'video' or 'audio' based on URL patterns."""
+    low = url.lower().split('?')[0]
+    for pat, typ in STREAM_TYPE_MAP.items():
+        if pat in low:
+            return typ
+    return 'video'
+
 
 def sanitize_url(url: str) -> str:
-    """Strip ad-injected query params from .m3u8 URLs.
-
-    Some portals append ad-network query strings to .m3u8 stream URLs
-    (e.g. ?ads.adserver=...&vast=...). These cause players to fail.
-    We strip them while preserving any legitimate auth params.
-    """
+    """Strip ad-injected query params from .m3u8 URLs."""
     try:
         idx = url.find('.m3u8?')
         if idx != -1:
@@ -44,34 +41,9 @@ def sanitize_url(url: str) -> str:
     return url
 
 
-def classify_stream_type(url: str) -> str:
-    """Classify a stream URL as 'video', 'audio', or 'video' (default).
-
-    Uses file extension and path patterns. Query strings are ignored.
-    Defaults to 'video' since the majority of IPTV streams are video.
-    """
-    low = url.lower().split('?')[0]  # strip query string before matching
-    for pat, typ in STREAM_TYPE_MAP.items():
-        if pat in low:
-            return typ
-    return 'video'
-
-
-def is_uncheckable(url: str) -> tuple:
-    """Return (True, reason_str) if the URL cannot be reliably probed.
-
-    URLs are uncheckable when:
-    - They are excessively long (likely token-signed / per-session)
-    - They contain auth-related keywords (token, key, signature, drm, ...)
-
-    Probing these would produce false negatives because:
-    - The HEAD request would fail due to missing session context
-    - The token may have already expired
-    """
-    if len(url) > UNCHECKABLE_URL_LENGTH_THRESHOLD:
-        return True, 'URL too long (likely token-signed)'
+def is_uncheckable(url: str) -> bool:
+    """Return True if the URL should not be probed (token-signed, auth, DRM, too long)."""
+    if len(url) > 250:
+        return True
     low = url.lower()
-    for kw in UNCHECKABLE_KEYWORDS:
-        if kw in low:
-            return True, f'Auth keyword detected: {kw}'
-    return False, ''
+    return any(kw in low for kw in UNCHECKABLE_KEYWORDS)

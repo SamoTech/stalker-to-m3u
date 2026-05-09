@@ -29,46 +29,59 @@ NDJSON event types (format=json)
 """
 
 from http.server import BaseHTTPRequestHandler
-import json, hashlib, re, time
+import json, hashlib, re, time, ipaddress
 import urllib.request, urllib.parse, urllib.error
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
+
+# Shared utilities — single source of truth
+from sanitize import sanitize_url, classify_stream_type, is_uncheckable
 
 
-# ── Stream-type classification ─────────────────────────────────────────────────
-STREAM_TYPE_MAP = {
-    '.m3u8': 'video', '.m3u': 'video', '.ts': 'video', '.mp4': 'video',
-    '.avi': 'video', '.mkv': 'video', '.flv': 'video',
-    '.mp3': 'audio', '.aac': 'audio', '.pls': 'audio', '.ogg': 'audio',
-    '/stream': 'audio', '/radio/': 'audio',
-}
+# ── SSRF guard ────────────────────────────────────────────────────────────────
 
-def classify_stream_type(url: str) -> str:
-    low = url.lower().split('?')[0]
-    for pat, typ in STREAM_TYPE_MAP.items():
-        if pat in low:
-            return typ
-    return 'video'
+_BLOCKED_RANGES = [
+    ipaddress.ip_network('10.0.0.0/8'),
+    ipaddress.ip_network('172.16.0.0/12'),
+    ipaddress.ip_network('192.168.0.0/16'),
+    ipaddress.ip_network('127.0.0.0/8'),
+    ipaddress.ip_network('169.254.0.0/16'),   # link-local / AWS metadata
+    ipaddress.ip_network('100.64.0.0/10'),    # Carrier-grade NAT
+    ipaddress.ip_network('::1/128'),          # IPv6 loopback
+    ipaddress.ip_network('fc00::/7'),         # IPv6 ULA
+    ipaddress.ip_network('fe80::/10'),        # IPv6 link-local
+]
 
-
-def sanitize_url(url: str) -> str:
-    """Strip ad-injected query params from .m3u8 URLs."""
+def _is_ssrf_safe(url: str) -> tuple:
+    """
+    Return (True, '') if the URL is safe to fetch, or (False, reason) if blocked.
+    Blocks private/loopback/link-local addresses and known cloud metadata endpoints.
+    """
     try:
-        idx = url.find('.m3u8?')
-        if idx != -1:
-            qs = url[idx + 6:].lower()
-            if any(kw in qs for kw in ['ads.', 'ad=', 'adv=', 'vast=', 'ima=']):
-                return url[:idx + 6].rstrip('?')
-    except Exception:
-        pass
-    return url
-
-
-def is_uncheckable(url: str) -> bool:
-    UNCHECKABLE_KEYWORDS = ['token', 'auth', 'login', 'key', 'signature', 'drm']
-    if len(url) > 250:
-        return True
-    low = url.lower()
-    return any(kw in low for kw in UNCHECKABLE_KEYWORDS)
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False, f'Scheme not allowed: {parsed.scheme}'
+        host = parsed.hostname or ''
+        # Block well-known metadata hostnames regardless of IP resolution
+        metadata_hosts = [
+            'metadata.google.internal',
+            'metadata.goog',
+            'instance-data',
+        ]
+        if any(host == mh or host.endswith('.' + mh) for mh in metadata_hosts):
+            return False, f'Blocked metadata host: {host}'
+        try:
+            ip = ipaddress.ip_address(host)
+            for blocked in _BLOCKED_RANGES:
+                if ip in blocked:
+                    return False, f'Blocked private/internal address: {host}'
+        except ValueError:
+            # hostname (not a raw IP) — we cannot resolve it server-side cheaply;
+            # let the OS reject it at connect time. Named internal hosts are an
+            # accepted residual risk on Vercel's isolated sandbox environment.
+            pass
+        return True, ''
+    except Exception as e:
+        return False, f'URL parse error: {e}'
 
 
 # ── M3U helpers ────────────────────────────────────────────────────────────────
@@ -243,7 +256,7 @@ def build_m3u(channels, epg_url=""):
         stype = classify_stream_type(url)
         group = ch.get("group", "Uncategorized")
         if ch.get("uncheckable"):
-            group = "⚠ Auth Required"
+            group = "\u26a0 Auth Required"
         lines.append(
             f'#EXTINF:-1 tvg-id="{ch["epg_id"]}" tvg-name="{name}" '
             f'tvg-logo="{ch["logo"]}" group-title="{group}" '
@@ -283,24 +296,18 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    # ── NDJSON streaming helpers ───────────────────────────────────────────────
-
     def start_ndjson(self):
-        """Send streaming response headers — no Content-Length."""
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-cache, no-transform")
-        self.send_header("X-Accel-Buffering", "no")  # disable nginx proxy buffering
+        self.send_header("X-Accel-Buffering", "no")
         self._cors()
         self.end_headers()
 
     def emit(self, payload: dict):
-        """Write one NDJSON line and flush immediately."""
         line = (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
         self.wfile.write(line)
         self.wfile.flush()
-
-    # ── HTTP verbs ─────────────────────────────────────────────────────────────
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -326,6 +333,11 @@ class handler(BaseHTTPRequestHandler):
             return self.send_json(400, {"error": "Missing required fields: portal, mac"})
         if not re.match(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', mac):
             return self.send_json(400, {"error": f"Invalid MAC: {mac}"})
+
+        # ── SSRF guard — must pass before any network call ─────────────────────
+        ssrf_ok, ssrf_reason = _is_ssrf_safe(portal)
+        if not ssrf_ok:
+            return self.send_json(400, {"error": f"Blocked portal URL: {ssrf_reason}"})
 
         known_urls = extract_known_urls(skip_known)
 
@@ -366,7 +378,6 @@ class handler(BaseHTTPRequestHandler):
 
         sent   = 0
         errors = []
-        # Seed estimate: types × maxPages × ~20 channels/page
         estimated_total = max(len(types) * max_pgs * 20, 20)
 
         for media_type in types:
@@ -384,7 +395,6 @@ class handler(BaseHTTPRequestHandler):
                                "message": err_msg, "page": page})
                     break
 
-                # Refine estimate from real portal total
                 if total_items:
                     estimated_total = max(estimated_total, sent + total_items)
 
@@ -414,7 +424,6 @@ class handler(BaseHTTPRequestHandler):
                     "done":           False,
                 })
 
-            # Signal end-of-type
             self.emit({
                 "event":          "progress",
                 "scope":          media_type,

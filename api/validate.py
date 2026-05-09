@@ -30,15 +30,12 @@ import json, re, threading
 import urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from .sanitize import (
-    sanitize_url,
-    classify_stream_type,
-    is_uncheckable,
-)
+# Absolute import — works in both Vercel runtime and local execution
+from sanitize import sanitize_url, classify_stream_type, is_uncheckable
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-VERSION = '1.0'
+VERSION = '1.1'
 
 DEAD_CONTENT_TYPES = [
     'text/html', 'text/xml', 'application/xml',
@@ -90,10 +87,10 @@ def parse_m3u(content: str) -> list:
 # ── Stream probe ──────────────────────────────────────────────────────────────
 
 def probe_stream(ch: dict, timeout: int) -> dict:
-    url = ch['url']
-    unch, reason = is_uncheckable(url)
+    url   = ch['url']
+    unch  = is_uncheckable(url)   # returns plain bool
     if unch:
-        return {**ch, 'status': 'uncheckable', 'reason': reason,
+        return {**ch, 'status': 'uncheckable', 'reason': 'Token/auth URL — skipped',
                 'stream_type': classify_stream_type(url)}
 
     try:
@@ -222,9 +219,7 @@ class handler(BaseHTTPRequestHandler):
         # Diff / recheck mode — build set of known-live URLs to skip
         known_live_urls: set = set()
         if existing_m3u:
-            known_live_urls = {
-                ch['url'] for ch in parse_m3u(existing_m3u)
-            }
+            known_live_urls = {ch['url'] for ch in parse_m3u(existing_m3u)}
 
         results = []
         lock    = threading.Lock()
