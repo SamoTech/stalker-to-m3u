@@ -2,19 +2,14 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "builds": [
     { "src": "public/index.html", "use": "@vercel/static" },
-    { "src": "api/convert.py",   "use": "@vercel/python" },
-    { "src": "api/test.py",      "use": "@vercel/python" },
-    { "src": "api/validate.py",  "use": "@vercel/python" }
+    { "src": "api/convert.py",   "use": "@vercel/python", "config": { "maxDuration": 60 } },
+    { "src": "api/test.py",      "use": "@vercel/python", "config": { "maxDuration": 15 } },
+    { "src": "api/validate.py",  "use": "@vercel/python", "config": { "maxDuration": 60 } }
   ],
   "routes": [
     { "src": "/api/convert",  "dest": "/api/convert.py" },
     { "src": "/api/test",     "dest": "/api/test.py" },
     { "src": "/api/validate", "dest": "/api/validate.py" },
     { "src": "/",             "dest": "/public/index.html" }
-  ],
-  "functions": {
-    "api/convert.py":  { "maxDuration": 60 },
-    "api/validate.py": { "maxDuration": 60 },
-    "api/test.py":     { "maxDuration": 15 }
-  }
+  ]
 }
