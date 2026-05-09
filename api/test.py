@@ -1,7 +1,8 @@
 """
 api/test.py — Vercel serverless function.
 
-GET /api/test?portal=http://HOST:PORT&mac=00:1A:79:XX:XX:XX
+POST /api/test  body: {"portal": "http://HOST:PORT", "mac": "00:1A:79:XX:XX:XX"}
+GET  /api/test?portal=http://HOST:PORT&mac=00:1A:79:XX:XX:XX
 
 Full portal inspector: runs the complete Stalker auth flow and
 returns portal health, subscriber info, and content counts.
@@ -47,7 +48,7 @@ class handler(BaseHTTPRequestHandler):
 
     def _cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
 
     def send_json(self, status, data):
@@ -68,7 +69,20 @@ class handler(BaseHTTPRequestHandler):
         qs     = parse_qs(urlparse(self.path).query)
         portal = (qs.get('portal', [''])[0]).strip().rstrip('/')
         mac    = (qs.get('mac',    [''])[0]).strip()
+        self._handle(portal, mac)
 
+    def do_POST(self):
+        """Frontend sends POST with JSON body {portal, mac}."""
+        length = int(self.headers.get('Content-Length', 0))
+        try:
+            body   = json.loads(self.rfile.read(length) if length else b'{}')
+        except Exception:
+            return self.send_json(400, {'ok': False, 'error': 'Invalid JSON body'})
+        portal = str(body.get('portal', '')).strip().rstrip('/')
+        mac    = str(body.get('mac',    '')).strip()
+        self._handle(portal, mac)
+
+    def _handle(self, portal, mac):
         if not portal:
             return self.send_json(400, {'ok': False, 'error': 'Missing portal param'})
 
@@ -168,7 +182,31 @@ class handler(BaseHTTPRequestHandler):
             result['content_ms'] = int((time.time() - t3) * 1000)
             result['total_ms']   = int((time.time() - t0) * 1000)
 
+            # Map fields to what the frontend inspector panel expects
+            info = profile
+            result['token'] = token
+            result['info']  = {
+                'name':        info.get('name') or info.get('login') or '',
+                'login':       info.get('login') or '',
+                'password':    info.get('password') or '',
+                'email':       info.get('email') or '',
+                'phone':       info.get('phone') or '',
+                'ip':          info.get('ip') or '',
+                'mac':         mac,
+                'status':      info.get('status') or '',
+                'tariff':      info.get('tariff_plan') or info.get('tariff') or '',
+                'start_date':  info.get('start_date') or '',
+                'end_date':    info.get('expire_billing_date') or info.get('tariff_expired_date') or '',
+                'server_time': info.get('cur_time') or '',
+                'services':    info.get('services') or '',
+                'keep_alive':  str(info.get('keep_alive') or ''),
+            }
+            result['counts'] = result['content']
+            result['account'] = profile
+
         except Exception as e:
             result['auth_error'] = str(e)
+            result['ok'] = False
+            result['error'] = str(e)
 
         return self.send_json(200, result)
