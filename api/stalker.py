@@ -9,6 +9,7 @@ Nothing in this file does any HTTP serving.
 import hashlib, json, re, time, ipaddress
 import urllib.request, urllib.error, urllib.parse
 from urllib.parse import urlencode, urlparse
+from typing import Optional
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -154,6 +155,11 @@ _PATH_CANDIDATES = [
     '/api/',
 ]
 
+# Single-segment stub paths that look like sub-paths but are actually
+# just the portal root directory prefix (e.g. /c, /stalker_portal).
+# When the user supplies one of these, we treat the origin as base and probe.
+_STUB_PATHS = {'/c', '/stalker_portal', '/server', '/api', '/portal'}
+
 # Process-lifetime cache: raw_base → resolved_base
 _resolved_bases: dict = {}
 
@@ -206,24 +212,31 @@ def _probe_path(origin: str, path: str, mac: str) -> bool:
 def resolve_portal_base(raw_base: str, mac: str) -> str:
     """
     Return a resolved base URL (includes the correct sub-path directory).
-    If the caller already included a sub-path beyond the root, it is
-    honoured directly.  Otherwise all _PATH_CANDIDATES are probed.
+
+    Strategy:
+    - If the user-supplied path is a known stub (e.g. /c, /stalker_portal)
+      we strip it and probe from the origin — the stub will be found again
+      via _PATH_CANDIDATES.
+    - If the user supplied a deeper non-root path (e.g. /some/deep/path)
+      we honour it directly.
+    - If path is root or empty, we probe all candidates from the origin.
+
     Raises RuntimeError if nothing responds with a valid handshake.
     """
     if raw_base in _resolved_bases:
         return _resolved_bases[raw_base]
 
-    parsed       = urlparse(raw_base)
-    origin       = f'{parsed.scheme}://{parsed.netloc}'
-    existing     = parsed.path.rstrip('/')
+    parsed   = urlparse(raw_base)
+    origin   = f'{parsed.scheme}://{parsed.netloc}'
+    existing = parsed.path.rstrip('/')
 
-    # User supplied a non-root path — trust it
-    if existing and existing != '/':
+    # Trust the path only if it's a deep, non-stub path
+    if existing and existing != '/' and existing not in _STUB_PATHS:
         resolved = raw_base.rstrip('/')
         _resolved_bases[raw_base] = resolved
         return resolved
 
-    # Auto-probe candidates
+    # Auto-probe candidates (covers root paths AND stub paths like /c)
     tried = []
     for path in _PATH_CANDIDATES:
         if _probe_path(origin, path, mac):
@@ -390,7 +403,7 @@ def build_channel(
     token: str,
     known_urls: set,
     fallback_number: int,
-) -> dict | None:
+) -> Optional[dict]:
     """
     Normalize a raw portal channel dict into our internal schema.
     Returns None if the channel should be skipped (already in known_urls).
@@ -425,7 +438,7 @@ def fetch_all(
     token: str,
     media_type: str,
     max_pages: int = 50,
-    known_urls: set | None = None,
+    known_urls: Optional[set] = None,
 ) -> list:
     """Buffered fetch of all pages for one media type."""
     genres     = fetch_genres(base, mac, token, media_type)
