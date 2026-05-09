@@ -7,6 +7,11 @@ POST /api/test   { "portal": "http://HOST:PORT" }
 from http.server import BaseHTTPRequestHandler
 import json, urllib.request
 
+# Vercel per-function config
+config = {
+    "maxDuration": 15,
+}
+
 class handler(BaseHTTPRequestHandler):
 
     def log_message(self, *a): pass

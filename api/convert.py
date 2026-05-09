@@ -9,14 +9,18 @@ POST /api/convert
     maxPages  : int   optional  default 50
     epgUrl    : str   optional
     format    : str   optional  "m3u" | "json"           default "m3u"
-
-Shares core helpers with stalker_to_m3u.py (no requests dep — uses stdlib urllib).
 """
 
 from http.server import BaseHTTPRequestHandler
 import json, hashlib, re, time
 import urllib.request, urllib.parse, urllib.error
 from urllib.parse import urlencode
+
+# Vercel per-function config (maxDuration in seconds, memory in MB)
+config = {
+    "maxDuration": 300,
+    "memory": 1024,
+}
 
 
 # ---------------------------------------------------------------------------
