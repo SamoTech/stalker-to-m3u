@@ -11,5 +11,10 @@
     { "src": "/api/test",     "dest": "/api/test.py" },
     { "src": "/api/validate", "dest": "/api/validate.py" },
     { "src": "/",             "dest": "/public/index.html" }
-  ]
+  ],
+  "functions": {
+    "api/convert.py":  { "maxDuration": 60 },
+    "api/validate.py": { "maxDuration": 60 },
+    "api/test.py":     { "maxDuration": 15 }
+  }
 }

@@ -77,7 +77,7 @@ input[type=range]{flex:1;accent-color:var(--primary);height:4px;cursor:pointer}
 /* progress */
 .progress-wrap{width:100%;max-width:680px;height:4px;background:var(--surf2);border-radius:4px;overflow:hidden;margin-bottom:8px;opacity:0;transition:opacity .2s}
 .progress-wrap.visible{opacity:1}
-.progress-bar{height:100%;width:0;background:var(--primary);border-radius:4px;transition:width .3s}
+.progress-bar{height:100%;width:0;background:var(--primary);border-radius:4px;transition:width .4s cubic-bezier(.16,1,.3,1)}
 .progress-bar.indeterminate{width:40%;animation:indeterminate 1.2s ease-in-out infinite}
 @keyframes indeterminate{0%{transform:translateX(-200%)}100%{transform:translateX(300%)}}
 
@@ -228,7 +228,7 @@ tr:hover td{background:var(--surf2)}
 </div>
 
 <div class="progress-wrap" id="progressWrap">
-  <div class="progress-bar indeterminate" id="progressBar"></div>
+  <div class="progress-bar" id="progressBar"></div>
 </div>
 <div class="status" id="status">Ready.</div>
 
@@ -314,7 +314,7 @@ tr:hover td{background:var(--surf2)}
 </footer>
 
 <script>
-// ── Theme ────────────────────────────────────────────────────────────────────
+// ── Theme ─────────────────────────────────────────────────────────────────────
 const html = document.documentElement;
 const themeBtn = document.getElementById('themeBtn');
 let dark = true;
@@ -358,14 +358,15 @@ recheckChk.addEventListener('change', () => {
 });
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let abortCtrl       = null;
-let validateAbort   = null;
-let m3uData         = null;
-let filteredM3u     = null;
-let allResults      = [];    // full validate results
-let activeFilter    = 'all';
-let sortCol         = null;
-let sortDir         = 'asc';
+let abortCtrl     = null;
+let validateAbort = null;
+let m3uData       = null;
+let filteredM3u   = null;
+let lastChannels  = [];   // streamed channel objects — reused by validate
+let allResults    = [];   // full validate results
+let activeFilter  = 'all';
+let sortCol       = null;
+let sortDir       = 'asc';
 
 const $ = id => document.getElementById(id);
 
@@ -390,14 +391,26 @@ function setStatus(msg, cls=''){
   el.className='status'+(cls?' '+cls:'');
 }
 
-// ── Progress ──────────────────────────────────────────────────────────────────
+// ── Progress helpers ──────────────────────────────────────────────────────────
 function setBusy(busy){
-  const pw=$('progressWrap'), pb=$('progressBar');
-  if(busy){pw.classList.add('visible');pb.classList.add('indeterminate');}
-  else{pw.classList.remove('visible');pb.classList.remove('indeterminate');}
+  const pw=$('progressWrap');
+  if(busy) pw.classList.add('visible');
+  else     pw.classList.remove('visible');
   $('convertBtn').disabled=busy;
   $('testBtn').disabled=busy;
   $('cancelBtn').disabled=!busy;
+}
+
+function setProgress(pct){
+  // pct=null → indeterminate; 0-100 → deterministic
+  const pb=$('progressBar');
+  if(pct==null){
+    pb.style.width='40%';
+    pb.classList.add('indeterminate');
+  }else{
+    pb.classList.remove('indeterminate');
+    pb.style.width=Math.max(3,Math.min(100,pct))+'%';
+  }
 }
 
 // ── Inputs ────────────────────────────────────────────────────────────────────
@@ -420,24 +433,36 @@ function validateInputs(){
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function badge(cls, text){
-  return `<span class="stat-badge ${cls}">${text}</span>`;
-}
-function pill(cls, text){
-  return `<span class="pill ${cls}">${text}</span>`;
-}
-function esc(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-function copyText(text){
-  return navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.resolve();
+function badge(cls, text){ return `<span class="stat-badge ${cls}">${text}</span>`; }
+function pill(cls, text){  return `<span class="pill ${cls}">${text}</span>`; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function copyText(text){ return navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.resolve(); }
+
+// ── Build M3U client-side from streamed channel array ─────────────────────────
+function buildM3uFromChannels(channels, epgUrl=''){
+  const lines = [epgUrl ? `#EXTM3U url-tvg="${epgUrl}"` : '#EXTM3U'];
+  for(const ch of channels || []){
+    const url = ch.stream_url || ch.raw_cmd || '';
+    if(!url) continue;
+    let group = ch.group || 'Uncategorized';
+    if(ch.uncheckable) group = '\u26a0 Auth Required';
+    lines.push(
+      `#EXTINF:-1 tvg-id="${ch.epg_id||''}" tvg-name="${ch.name||''}" ` +
+      `tvg-logo="${ch.logo||''}" group-title="${group}" ` +
+      `tvg-chno="${ch.number||''}" tvg-type="${ch.stream_type||'video'}",${ch.name||'Unknown'}`
+    );
+    lines.push(url);
+  }
+  return lines.join('\n') + '\n';
 }
 
-// ── Convert ───────────────────────────────────────────────────────────────────
+// ── Convert (NDJSON streaming) ────────────────────────────────────────────────
 $('convertBtn').addEventListener('click', async () => {
   if(!validateInputs()) return;
   const{portal,mac,epg,types,maxPages,skipKnown}=getInputs();
-  m3uData=null; filteredM3u=null;
+
+  // Reset state
+  m3uData=null; filteredM3u=null; lastChannels=[];
   $('saveBtn').disabled=true;
   $('copyBtn').disabled=true;
   $('validateBtn').disabled=true;
@@ -445,19 +470,22 @@ $('convertBtn').addEventListener('click', async () => {
   $('validatePanel').classList.remove('visible');
   clearLog();
   setBusy(true);
+  setProgress(3);
   setStatus('Connecting\u2026');
+
   log(`Portal  : ${portal}`,'info');
   log(`MAC     : ${mac}`,'info');
   log(`Types   : ${types.join(', ')}`,'info');
   log(`Pages   : ${maxPages} per type`,'info');
-  if(skipKnown) log(`Re-check: diff mode — skipping existing URLs`,'warn');
+  if(skipKnown) log('Re-check: diff mode \u2014 skipping existing URLs','warn');
   log('','info');
-  abortCtrl=new AbortController();
+
+  abortCtrl = new AbortController();
   try{
-    const res=await fetch('/api/convert',{
+    const res = await fetch('/api/convert',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({portal,mac,types,maxPages,epgUrl:epg,format:'m3u',skipKnown}),
+      body:JSON.stringify({portal,mac,types,maxPages,epgUrl:epg,format:'json',skipKnown}),
       signal:abortCtrl.signal,
     });
     if(!res.ok){
@@ -465,26 +493,104 @@ $('convertBtn').addEventListener('click', async () => {
       try{const j=await res.json();err=j.error||err;}catch(_){}
       throw new Error(err);
     }
-    const text=await res.text();
-    const count=(text.match(/#EXTINF/g)||[]).length;
-    m3uData=text;
-    log(`\u2713 Done \u2014 ${count} channels`,'ok');
-    setStatus(`\u2713 ${count} channels ready \u2014 click Save .m3u`,'ok');
+    if(!res.body) throw new Error('ReadableStream not supported — try a modern browser');
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf  = '';
+    let count = 0;
+    let estimatedTotal = Math.max(types.length * maxPages * 20, 20);
+    let doneEvt = null;
+
+    // ── NDJSON read loop ──────────────────────────────────────────────────────
+    outer: while(true){
+      const {value, done} = await reader.read();
+      if(done) break;
+      buf += decoder.decode(value, {stream:true});
+      let nl;
+      while((nl = buf.indexOf('\n')) >= 0){
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if(!line) continue;
+        let evt;
+        try{ evt = JSON.parse(line); }catch(_){ continue; }
+
+        switch(evt.event){
+          case 'meta':
+            estimatedTotal = Math.max(estimatedTotal, evt.types.length * evt.maxPages * 20, 20);
+            break;
+
+          case 'profile':{
+            const p = evt.profile || {};
+            const tariff = p.tariff_plan ? ` \u00b7 tariff ${p.tariff_plan}` : '';
+            const expiry = p.end_date   ? ` \u00b7 expires ${p.end_date}`    : '';
+            if(tariff||expiry) log(`Profile: ${(tariff+expiry).trim()}`,'ok');
+            break;
+          }
+
+          case 'channel':{
+            if(evt.channel) lastChannels.push(evt.channel);
+            count = evt.count || lastChannels.length;
+            // Log first 3 then every 50
+            if(count <= 3 || count % 50 === 0)
+              log(`Fetched ${count} channel${count!==1?'s':''}\u2026`,'info');
+            break;
+          }
+
+          case 'progress':{
+            if(evt.estimatedTotal) estimatedTotal = Math.max(estimatedTotal, evt.estimatedTotal);
+            const pct = Math.max(4, Math.min(96, (count / estimatedTotal) * 100));
+            setProgress(pct);
+            const pageTag = evt.page ? ` p${evt.page}` : '';
+            setStatus(`Fetching\u2026 ${count} channels (${evt.scope}${pageTag})`);
+            break;
+          }
+
+          case 'error':
+            log(`WARN [${evt.scope||'?'} p${evt.page||'?'}]: ${evt.message}`,'warn');
+            break;
+
+          case 'done':
+            doneEvt = evt;
+            break outer;
+        }
+      }
+    }
+
+    // ── Build M3U from collected channels ────────────────────────────────────
+    m3uData = buildM3uFromChannels(lastChannels, epg);
+    setProgress(100);
+
+    const finalCount = lastChannels.length;
+    const errCount   = doneEvt && doneEvt.errors ? doneEvt.errors.length : 0;
+    log(`\u2713 Done \u2014 ${finalCount} channels`+(errCount?`, ${errCount} warning${errCount!==1?'s':''}`:'')+'.','ok');
+    setStatus(`\u2713 ${finalCount} channels ready \u2014 click Save .m3u`,'ok');
+
     $('saveBtn').disabled=false;
     $('copyBtn').disabled=false;
     $('validateBtn').disabled=false;
+
     $('resultStats').innerHTML=[
-      badge('stat-total',`${count} channels`),
-      badge('stat-total',`${(new Blob([text]).size/1024).toFixed(1)} KB`),
-      skipKnown?badge('stat-unch','Diff mode'):'',
+      badge('stat-total',`${finalCount} channels`),
+      badge('stat-total',`${(new Blob([m3uData]).size/1024).toFixed(1)} KB`),
+      skipKnown ? badge('stat-unch','Diff mode') : '',
+      errCount  ? badge('stat-dead',`${errCount} warning${errCount!==1?'s':''}`) : '',
     ].join('');
-    $('resultText').value=text.slice(0,20000)+(text.length>20000?'\n... (truncated for preview)':'');
+    $('resultText').value = m3uData.slice(0,20000)+(m3uData.length>20000?'\n... (truncated for preview)':'');
     $('resultCard').classList.add('visible');
+
   }catch(e){
-    if(e.name==='AbortError'){setStatus('Cancelled.','');log('\u26a0 Cancelled by user.','warn');}
-    else{setStatus(`\u2717 ${e.message}`,'err');log(`ERROR: ${e.message}`,'err');}
+    if(e.name==='AbortError'){
+      setStatus('Cancelled.','');
+      log('\u26a0 Cancelled by user.','warn');
+    }else{
+      setStatus(`\u2717 ${e.message}`,'err');
+      log(`ERROR: ${e.message}`,'err');
+    }
   }finally{
     setBusy(false);
+    setProgress(null); // reset to indeterminate-ready for next run
+    $('progressWrap').classList.remove('visible');
     abortCtrl=null;
   }
 });
@@ -564,7 +670,6 @@ $('runValidateBtn').addEventListener('click', async ()=>{
   $('copyFilteredBtn').disabled=true;
   filteredM3u=null;
 
-  // Show progress bar immediately
   _vpCurrent=0; _vpTarget=0;
   $('vpProgress').classList.add('visible');
   animateVpBar(0);
@@ -573,9 +678,6 @@ $('runValidateBtn').addEventListener('click', async ()=>{
   $('runValidateBtn').disabled=true;
   $('cancelValidateBtn').disabled=false;
 
-  // Simulate incremental progress during the single-batch API call.
-  // We tick progress from 0→90% over estimated time (total/workers * timeout * 1000 ms),
-  // then jump to 100% when the response arrives.
   const estimatedMs = Math.max((total / workers) * timeout * 1000, 3000);
   const tickInterval = 300;
   const ticksTotal = estimatedMs / tickInterval;
@@ -584,7 +686,6 @@ $('runValidateBtn').addEventListener('click', async ()=>{
     tick++;
     const pct = Math.min(90, (tick/ticksTotal)*90);
     animateVpBar(pct);
-    // Estimate channels done based on progress
     const doneSoFar = Math.round((pct/100)*total);
     $('vpProgressText').textContent=`Checking\u2026 ~${doneSoFar} / ${total} (${Math.round(pct)}%)`;
   }, tickInterval);
@@ -605,7 +706,7 @@ $('runValidateBtn').addEventListener('click', async ()=>{
     }
     const data = await res.json();
     animateVpBar(100);
-    $('vpProgressText').textContent=`Done — ${data.total} channels checked`;
+    $('vpProgressText').textContent=`Done \u2014 ${data.total} channels checked`;
 
     allResults = data.results || [];
     filteredM3u = data.filtered_m3u || null;
@@ -613,18 +714,17 @@ $('runValidateBtn').addEventListener('click', async ()=>{
     const {live=0,dead=0,uncheckable=0,total:tot=0} = data;
     $('validateStats').innerHTML=[
       badge('stat-total',`${tot} total`),
-      badge('stat-live',`✓ ${live} live`),
-      badge('stat-dead',`✗ ${dead} dead`),
-      badge('stat-unch',`⚠ ${uncheckable} auth`),
+      badge('stat-live',`\u2713 ${live} live`),
+      badge('stat-dead',`\u2717 ${dead} dead`),
+      badge('stat-unch',`\u26a0 ${uncheckable} auth`),
     ].join('');
 
-    // Reset filter & sort
     activeFilter='all'; sortCol=null; sortDir='asc';
     document.querySelectorAll('.filter-btn').forEach(b=>b.className='filter-btn');
     $('fbAll').classList.add('active-all');
     document.querySelectorAll('th[data-col]').forEach(th=>{
       th.classList.remove('sort-asc','sort-desc');
-      th.querySelector('.sort-icon').textContent='⇅';
+      th.querySelector('.sort-icon').textContent='\u21c5';
     });
 
     renderTable();
@@ -656,7 +756,7 @@ function getFilteredSorted(){
   const q = ($('tableSearch').value||'').toLowerCase();
   let rows = allResults.filter(r=>{
     if(activeFilter!=='all' && r.status!==activeFilter) return false;
-    if(q && !r.name.toLowerCase().includes(q) && !r.group.toLowerCase().includes(q)) return false;
+    if(q && !r.name.toLowerCase().includes(q) && !(r.group||'').toLowerCase().includes(q)) return false;
     return true;
   });
   if(sortCol){
@@ -675,10 +775,10 @@ function renderTable(){
   const tb=$('vpTableBody');
   tb.innerHTML='';
   rows.forEach(r=>{
-    const statusPill = r.status==='live'?pill('pill-live','LIVE')
-                      :r.status==='dead'?pill('pill-dead','DEAD')
-                      :pill('pill-unch','AUTH');
-    const typePill = r.stream_type==='audio'?pill('pill-audio','audio'):pill('pill-video','video');
+    const statusPill = r.status==='live' ? pill('pill-live','LIVE')
+                     : r.status==='dead' ? pill('pill-dead','DEAD')
+                     : pill('pill-unch','AUTH');
+    const typePill = r.stream_type==='audio' ? pill('pill-audio','audio') : pill('pill-video','video');
     const reason = r.reason?`<div class="reason-text" title="${esc(r.reason)}">${esc(r.reason)}</div>`:'';
     const tr=document.createElement('tr');
     tr.innerHTML=`
@@ -726,7 +826,7 @@ $('tableSearch').addEventListener('input', ()=>renderTable());
 document.querySelectorAll('th[data-col]').forEach(th=>{
   th.addEventListener('click',()=>{
     const col=th.dataset.col;
-    if(col==='url') return; // no sort on URL column
+    if(col==='url') return;
     if(sortCol===col){
       sortDir=sortDir==='asc'?'desc':'asc';
     }else{
@@ -734,10 +834,10 @@ document.querySelectorAll('th[data-col]').forEach(th=>{
     }
     document.querySelectorAll('th[data-col]').forEach(h=>{
       h.classList.remove('sort-asc','sort-desc');
-      h.querySelector('.sort-icon').textContent='⇅';
+      h.querySelector('.sort-icon').textContent='\u21c5';
     });
     th.classList.add(sortDir==='asc'?'sort-asc':'sort-desc');
-    th.querySelector('.sort-icon').textContent=sortDir==='asc'?'↑':'↓';
+    th.querySelector('.sort-icon').textContent=sortDir==='asc'?'\u2191':'\u2193';
     renderTable();
   });
 });
